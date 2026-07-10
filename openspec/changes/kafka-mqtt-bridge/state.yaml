@@ -1,5 +1,5 @@
 change: kafka-mqtt-bridge
-status: proposal
+status: apply
 created: 2026-07-10
 artifact_store: hybrid
 context: nodes
@@ -9,36 +9,48 @@ phases:
   spec: done
   design: done
   tasks: done
-  apply: pending
-  verify: pending
+  apply: done
+  verify: partial
   archive: pending
 next_recommended:
-  - review-with-user
-  - sdd-apply
+  - sdd-verify
+  - sdd-archive
 notes: |
-  Proposal for the first bounded context in gardenia-bridge: `nodes`, a
-  stateless Kafka<->MQTT relay for IoT node traffic (telemetry, heartbeat,
-  command, command-ack), with a local SQLite audit log (edge-deployment
-  friendly, independent of the main Postgres connection). No device registry,
-  no business transport (GraphQL/REST/MCP), best-effort delivery, no node
-  auth in v1 — all explicit decisions confirmed with the user before writing
-  this proposal. Explicitly deviates from the template's standard
-  aggregate/CQRS ceremony where it doesn't apply; design.md documents exactly
-  what applies and what doesn't, since this is the precedent-setting first
-  context for this service.
+  Implemented in full: all 8 phases of tasks.md complete (domain,
+  application, MQTT/Kafka/SQLite infrastructure, module wiring, health
+  indicators, config, docker-compose, tests). tsc --noEmit clean, nest build
+  green, eslint clean, full unit suite green (125 tests across 26 suites,
+  incl. all `nodes` unit tests). Integration tests for `nodes`: MQTT round-trip
+  (embedded aedes broker) and SQLite audit-log round-trip both executed and
+  passing (7 tests). Kafka round-trip via testcontainers was authored
+  (test/integration/nodes/kafka-bridge.integration-spec.ts) but NOT exercised
+  against a real broker here — this sandbox has no reachable Docker daemon
+  (`docker run hello-world` fails to reach /var/run/docker.sock). The suite
+  self-skips gracefully when no Docker daemon is reachable; run it wherever
+  Docker is available for real coverage.
 
-  Kafka topics: one topic per message type from the start (revised after
-  user feedback) — gardenia-bridge.telemetry, .heartbeat, .command-acks
-  (node→Kafka) and .commands (Kafka→node) — rather than a single shared
-  topic discriminated by a `type` field. A single KafkaBridgeProducerService
-  resolves the destination topic from envelope.type, so the application
-  layer stays unaware of the topic split.
+  One notable implementation-time deviation from the original tasks.md text:
+  the MQTT/bridge-Kafka health indicators live in
+  src/contexts/nodes/infrastructure/health/ (not src/core/health/indicators/
+  as tasks.md 7.4/7.5 originally said) — they need this context's connection
+  state, so keeping them in `nodes` and having `HealthModule` import
+  `NodesModule` to compose them respects the domain/infra split better than
+  reaching from core into a context's internals. Documented as a deliberate
+  exception in src/contexts/nodes/README.md and design.md. tasks.md updated
+  to reflect the actual paths.
 
-  SQLite persistence: confirmed with the user as TypeORM + a second
-  `better-sqlite3`-backed DataSource (as originally proposed in design.md),
-  after walking through the alternative (raw better-sqlite3, no ORM) — user
-  chose to keep one consistent persistence tool across the project.
+  Design recap: stateless Kafka<->MQTT relay for IoT node traffic (telemetry,
+  heartbeat, command, command-ack) with a local SQLite audit log
+  (edge-deployment friendly, independent of the main Postgres connection).
+  No device registry, no business transport (GraphQL/REST/MCP), best-effort
+  delivery, no node auth in v1. One Kafka topic per message type from the
+  start (gardenia-bridge.telemetry / .heartbeat / .command-acks / .commands)
+  — a single KafkaBridgeProducerService resolves the destination topic from
+  envelope.type, so the application layer stays unaware of the topic split.
+  SQLite persistence via TypeORM + a second `better-sqlite3`-backed
+  DataSource (not raw SQL) — user confirmed after reviewing the alternative.
 
-  Not yet implemented. Run `openspec-apply-change` (or ask to implement) to
-  start working through tasks.md — the user has reviewed and confirmed both
-  flagged decisions (SQLite approach, per-type Kafka topics).
+  Remaining before archive: `gardenia-api` consumer/producer wiring is
+  explicitly out of scope for this change (see proposal.md). Running the
+  Kafka integration suite against a real broker (e.g. in CI, where Docker is
+  available) would close out `verify`.

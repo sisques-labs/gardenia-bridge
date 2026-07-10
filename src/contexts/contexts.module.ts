@@ -1,8 +1,8 @@
 import { DynamicModule, Module, Type } from '@nestjs/common';
 
-// Register every bounded context module here as it's added, e.g.:
-// const CONTEXT_MODULES = [OrdersModule, CustomersModule];
-const CONTEXT_MODULES: (DynamicModule | Type<unknown>)[] = [];
+import { NodesModule } from './nodes/nodes.module';
+
+const CONTEXT_MODULES: (DynamicModule | Type<unknown>)[] = [NodesModule];
 
 @Module({
   imports: [...CONTEXT_MODULES],

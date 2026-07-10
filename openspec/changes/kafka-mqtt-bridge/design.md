@@ -156,8 +156,8 @@ README.md
 | File | Action | Description |
 |---|---|---|
 | `src/core/health/transport/rest/controllers/health.controller.ts` | Modify | Add MQTT + bridge-Kafka indicators to `GET /api/health/ready` |
-| `src/core/health/indicators/mqtt.health-indicator.ts` | Create | `@nestjs/terminus`-style indicator checking `MqttClientProvider` connection state |
-| `src/core/health/indicators/bridge-kafka.health-indicator.ts` | Create | Checks producer/consumer connection state |
+| `src/contexts/nodes/infrastructure/health/mqtt.health-indicator.ts` | Create | `@nestjs/terminus`-style indicator checking `MqttClientProvider` connection state. Lives in `nodes`, not `src/core/health/` — it needs this context's connection state; `NodesModule` exports it and `HealthModule` imports `NodesModule` to compose it (documented exception, see README) |
+| `src/contexts/nodes/infrastructure/health/bridge-kafka.health-indicator.ts` | Create | Checks producer/consumer connection state; same placement rationale as above |
 | `src/database/data-sources/sqlite-audit.data-source.ts` | Create | Second `DataSource`, `better-sqlite3`, separate migrations dir |
 | `src/database/migrations-sqlite/<ts>-CreateBridgeMessageLog.ts` | Create | `bridge_message_log` table |
 | `src/contexts/contexts.module.ts` | Modify | Register `NodesModule` |

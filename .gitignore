@@ -63,3 +63,8 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # pnpm
 .pnpm-store
+
+# nodes bridge — local SQLite audit log (BRIDGE_AUDIT_DB_PATH)
+/data
+*.sqlite
+*.sqlite3

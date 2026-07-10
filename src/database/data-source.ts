@@ -22,6 +22,11 @@ export default new DataSource({
   synchronize: process.env.DATABASE_SYNCHRONIZE === 'true',
   logging: process.env.NODE_ENV !== 'production',
   extra: { connectionLimit: 10 },
-  entities: ['src/**/*.entity{.ts,.js}'],
+  // Scoped to the Postgres persistence convention so the sibling SQLite
+  // audit-log entity (infrastructure/persistence/sqlite/entities/) never
+  // gets picked up here — see src/database/data-sources/sqlite-audit.data-source.ts
+  entities: [
+    'src/contexts/**/infrastructure/persistence/typeorm/entities/*.entity{.ts,.js}',
+  ],
   migrations: ['src/database/migrations/*{.ts,.js}'],
 });

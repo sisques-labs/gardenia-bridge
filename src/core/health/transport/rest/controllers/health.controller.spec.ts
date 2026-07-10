@@ -4,12 +4,17 @@ import {
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
 
+import { BridgeKafkaHealthIndicator } from '@contexts/nodes/infrastructure/health/bridge-kafka.health-indicator';
+import { MqttHealthIndicator } from '@contexts/nodes/infrastructure/health/mqtt.health-indicator';
+
 import { HealthController } from './health.controller';
 
 describe('HealthController', () => {
   let controller: HealthController;
   let health: jest.Mocked<HealthCheckService>;
   let db: jest.Mocked<TypeOrmHealthIndicator>;
+  let mqtt: jest.Mocked<MqttHealthIndicator>;
+  let bridgeKafka: jest.Mocked<BridgeKafkaHealthIndicator>;
 
   beforeEach(() => {
     health = {
@@ -18,7 +23,13 @@ describe('HealthController', () => {
     db = {
       pingCheck: jest.fn(),
     } as unknown as jest.Mocked<TypeOrmHealthIndicator>;
-    controller = new HealthController(health, db);
+    mqtt = {
+      check: jest.fn(),
+    } as unknown as jest.Mocked<MqttHealthIndicator>;
+    bridgeKafka = {
+      check: jest.fn(),
+    } as unknown as jest.Mocked<BridgeKafkaHealthIndicator>;
+    controller = new HealthController(health, db, mqtt, bridgeKafka);
   });
 
   describe('check() / live()', () => {
@@ -51,7 +62,11 @@ describe('HealthController', () => {
 
       const response = await controller.ready();
 
-      expect(health.check).toHaveBeenCalledWith([expect.any(Function)]);
+      expect(health.check).toHaveBeenCalledWith([
+        expect.any(Function),
+        expect.any(Function),
+        expect.any(Function),
+      ]);
       expect(response).toBe(result);
     });
   });

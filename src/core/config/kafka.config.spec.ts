@@ -13,6 +13,10 @@ describe('kafkaConfig', () => {
     delete process.env.KAFKA_SASL_MECHANISM;
     delete process.env.KAFKA_SASL_USERNAME;
     delete process.env.KAFKA_SASL_PASSWORD;
+    delete process.env.KAFKA_BRIDGE_TELEMETRY_TOPIC;
+    delete process.env.KAFKA_BRIDGE_HEARTBEAT_TOPIC;
+    delete process.env.KAFKA_BRIDGE_COMMAND_ACKS_TOPIC;
+    delete process.env.KAFKA_BRIDGE_COMMANDS_TOPIC;
   });
 
   afterAll(() => {
@@ -24,12 +28,33 @@ describe('kafkaConfig', () => {
 
     expect(config).toEqual({
       enabled: false,
-      clientId: 'nestjs-template',
+      clientId: 'gardenia-bridge',
       brokers: [],
-      topicPrefix: 'nestjs-template',
+      topicPrefix: 'gardenia-bridge',
       ssl: false,
       sasl: null,
+      bridgeTelemetryTopic: 'gardenia-bridge.telemetry',
+      bridgeHeartbeatTopic: 'gardenia-bridge.heartbeat',
+      bridgeCommandAcksTopic: 'gardenia-bridge.command-acks',
+      bridgeCommandsTopic: 'gardenia-bridge.commands',
     });
+  });
+
+  it('derives bridge topic names from a custom KAFKA_TOPIC_PREFIX', () => {
+    process.env.KAFKA_TOPIC_PREFIX = 'custom-prefix';
+
+    const config = kafkaConfig();
+
+    expect(config.bridgeTelemetryTopic).toBe('custom-prefix.telemetry');
+    expect(config.bridgeHeartbeatTopic).toBe('custom-prefix.heartbeat');
+    expect(config.bridgeCommandAcksTopic).toBe('custom-prefix.command-acks');
+    expect(config.bridgeCommandsTopic).toBe('custom-prefix.commands');
+  });
+
+  it('allows overriding bridge topic names independently of the prefix', () => {
+    process.env.KAFKA_BRIDGE_TELEMETRY_TOPIC = 'custom.telemetry';
+
+    expect(kafkaConfig().bridgeTelemetryTopic).toBe('custom.telemetry');
   });
 
   it('parses a comma-separated broker list trimming blanks', () => {

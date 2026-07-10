@@ -7,6 +7,9 @@ import {
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
 
+import { BridgeKafkaHealthIndicator } from '@contexts/nodes/infrastructure/health/bridge-kafka.health-indicator';
+import { MqttHealthIndicator } from '@contexts/nodes/infrastructure/health/mqtt.health-indicator';
+
 import { HealthResponseDto } from '../dtos/health-response.dto';
 
 @ApiTags('health')
@@ -17,6 +20,8 @@ export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
     private readonly db: TypeOrmHealthIndicator,
+    private readonly mqtt: MqttHealthIndicator,
+    private readonly bridgeKafka: BridgeKafkaHealthIndicator,
   ) {}
 
   @Get()
@@ -46,10 +51,15 @@ export class HealthController {
   @Get('ready')
   @HealthCheck()
   @ApiOperation({
-    summary: 'Readiness probe — verifies the database connection',
+    summary:
+      'Readiness probe — verifies the database, MQTT, and bridge Kafka connections',
   })
   ready(): Promise<HealthCheckResult> {
     this.logger.debug('Readiness check called');
-    return this.health.check([() => this.db.pingCheck('database')]);
+    return this.health.check([
+      () => this.db.pingCheck('database'),
+      () => this.mqtt.check('mqtt'),
+      () => this.bridgeKafka.check('bridgeKafka'),
+    ]);
   }
 }
