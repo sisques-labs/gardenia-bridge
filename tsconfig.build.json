@@ -1,0 +1,36 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "test", "dist", "scripts", "**/*spec.ts"],
+  "compilerOptions": {
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "paths": {
+      "@core/*": ["src/core/*"],
+      "@contexts/*": ["src/contexts/*"],
+      "@modelcontextprotocol/sdk/server/mcp.js": [
+        "node_modules/@modelcontextprotocol/sdk/dist/cjs/server/mcp"
+      ],
+      "@modelcontextprotocol/sdk/server/streamableHttp.js": [
+        "node_modules/@modelcontextprotocol/sdk/dist/cjs/server/streamableHttp"
+      ],
+      "@modelcontextprotocol/sdk/types.js": [
+        "node_modules/@modelcontextprotocol/sdk/dist/cjs/types"
+      ],
+      "@sisques-labs/nestjs-kit/graphql": [
+        "node_modules/@sisques-labs/nestjs-kit/dist/entrypoints/graphql"
+      ],
+      "@sisques-labs/nestjs-kit/mcp": [
+        "node_modules/@sisques-labs/nestjs-kit/dist/entrypoints/mcp"
+      ],
+      "@sisques-labs/nestjs-kit/messaging": [
+        "node_modules/@sisques-labs/nestjs-kit/dist/entrypoints/messaging"
+      ],
+      "@sisques-labs/nestjs-kit/metrics": [
+        "node_modules/@sisques-labs/nestjs-kit/dist/entrypoints/metrics"
+      ],
+      "@sisques-labs/nestjs-kit/typeorm": [
+        "node_modules/@sisques-labs/nestjs-kit/dist/entrypoints/typeorm"
+      ]
+    }
+  }
+}

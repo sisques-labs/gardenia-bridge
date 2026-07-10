@@ -1,0 +1,6 @@
+# Keep the Kafka aggregate->module map derived from the folder layout, so a new
+# module/aggregate never needs a manual edit. Regenerate and stage it before lint.
+pnpm gen:topics
+git add src/core/messaging/domain/topics/aggregate-module.map.generated.ts
+
+pnpm exec lint-staged
