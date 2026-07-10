@@ -54,7 +54,7 @@
     "@nestjs/swagger": "^7.4.2",
     "@nestjs/terminus": "^10.2.3",
     "@nestjs/typeorm": "^11.0.1",
-    "@sentry/nestjs": "^10.58.0",
+    "@sentry/nestjs": "^10.65.0",
     "@sentry/profiling-node": "^10.58.0",
     "@sisques-labs/nestjs-kit": "^1.2.1",
     "@willsoto/nestjs-prometheus": "^6.1.0",
