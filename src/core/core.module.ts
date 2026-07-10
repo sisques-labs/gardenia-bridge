@@ -49,11 +49,17 @@ const CORE_MODULES = [
   }),
   // Second, independent connection for the `nodes` bridge context's local
   // SQLite audit log — see src/core/config/sqlite-audit.config.ts.
-  TypeOrmModule.forRootAsync({
+  // Registered via forRoot (sync), not forRootAsync: @nestjs/typeorm 11 has
+  // a shutdown-hook bug when two forRootAsync() connections coexist (the
+  // second's TypeOrmCoreModule can't resolve its own DataSource token on
+  // app.close(), throwing "Nest could not find DataSource element"). The
+  // config here needs no async I/O — sqliteAuditConfig() just reads
+  // process.env synchronously (registerAs factories are directly callable)
+  // — so forRoot sidesteps the bug entirely. ConfigService still exposes it
+  // under 'sqliteAudit' for anything else that wants it.
+  TypeOrmModule.forRoot({
     name: 'sqlite-audit',
-    inject: [ConfigService],
-    useFactory: (config: ConfigService) =>
-      config.getOrThrow<TypeOrmModuleOptions>('sqliteAudit'),
+    ...sqliteAuditConfig(),
   }),
   // REST controllers are documented via Swagger (see main.ts). GraphQL is
   // wired alongside it — drop whichever transport this service doesn't use.
