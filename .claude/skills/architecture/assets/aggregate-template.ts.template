@@ -1,0 +1,33 @@
+import { BaseAggregate } from '@sisques-labs/nestjs-kit';
+import { {Name}Primitives } from '../primitives/{name}.primitives';
+import { {Name}CreatedEvent } from '../events/{name}-created/{name}-created.event';
+
+export class {Name}Aggregate extends BaseAggregate<{Name}Primitives> {
+  // Fields — set only via constructor (hydration) or domain methods
+  private _exampleField: string;
+
+  // Constructor = pure hydration. No this.apply() here.
+  constructor(primitives: {Name}Primitives) {
+    super(primitives.id);
+    this._exampleField = primitives.exampleField;
+  }
+
+  // Factory method — the ONLY place that emits the created event
+  create(): void {
+    // domain invariant checks here
+    this.apply(new {Name}CreatedEvent(this.toPrimitives()));
+  }
+
+  // Other domain methods follow the same pattern
+  delete(): void {
+    // guard: throw domain exception if already deleted
+    this.apply(new {Name}DeletedEvent(this.toPrimitives()));
+  }
+
+  toPrimitives(): {Name}Primitives {
+    return {
+      id: this.id,
+      exampleField: this._exampleField,
+    };
+  }
+}

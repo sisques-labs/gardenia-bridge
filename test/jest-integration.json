@@ -1,0 +1,18 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "..",
+  "testEnvironment": "node",
+  "testRegex": "test/integration/.*\\.integration-spec\\.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^@contexts/(.*)$": "<rootDir>/src/contexts/$1",
+    "^@core/(.*)$": "<rootDir>/src/core/$1"
+  },
+  "setupFiles": ["<rootDir>/test/helpers/env-setup.ts"],
+  "globalSetup": "<rootDir>/test/global-setup.ts",
+  "testTimeout": 30000,
+  "maxWorkers": 1,
+  "passWithNoTests": true
+}
