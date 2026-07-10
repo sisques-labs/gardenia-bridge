@@ -1,0 +1,73 @@
+schema: spec-driven
+
+context: |
+  Tech stack: NestJS 10, TypeScript (strict), GraphQL (Apollo code-first) + REST, CQRS (@nestjs/cqrs), TypeORM + PostgreSQL, Jest, pnpm 9.15.4
+  Architecture: DDD + CQRS + Hexagonal (Screaming Architecture). No bounded contexts yet — this is a fresh service template; the first context added defines the pattern every subsequent one follows. Layers: domain / application / infrastructure / transport
+  Testing: Jest unit (co-located .spec.ts, jest.Mocked<T>) + integration (test/integration/*.integration-spec.ts, real Postgres) + E2E (test/*.e2e-spec.ts, AppModule). Coverage: pnpm test:cov
+  Style: Prettier + ESLint, Husky + lint-staged. Conventional Commits. No AI attribution in commits.
+
+testing:
+  strict_tdd: true
+  test_command: "pnpm test"
+  coverage_command: "pnpm test:cov"
+  e2e_command: "pnpm test:e2e"
+  integration_command: "pnpm test:integration"
+  layers:
+    unit: { available: true, tool: "jest + ts-jest" }
+    integration: { available: true, tool: "jest + postgres" }
+    e2e: { available: true, tool: "jest + supertest" }
+  coverage: { available: true, command: "pnpm test:cov" }
+  quality:
+    linter: { available: true, command: "pnpm lint" }
+    type_checker: { available: true, command: "tsc --noEmit" }
+    formatter: { available: true, command: "pnpm format" }
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Identify all bounded contexts impacted
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+    - Respect DDD+CQRS+Hexagonal layering — no cross-layer violations
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+    - Each task must include migration plan if DB schema changes
+  apply:
+    - For every change that adds, removes, or modifies public API (commands, queries, events, endpoints, guards, decorators) or domain concepts in a bounded context, update or create the README.md at src/contexts/{context}/README.md. The README must reflect the current state of the context — not just the delta.
+    - Follow existing DDD+CQRS+Hexagonal patterns (see architecture skill)
+    - When adding or changing a feature, include tests at all applicable layers: unit (src/**/*.spec.ts), integration (test/integration/**/*.integration-spec.ts for persistence boundaries), and API E2E (test/**/*.e2e-spec.ts for HTTP/GraphQL flows). Skip a layer only when clearly out of scope and document why in the PR.
+    - NestJS modules: group providers into named const arrays (COMMAND_HANDLERS, QUERY_HANDLERS, APPLICATION_SERVICES, DOMAIN_BUILDERS, INFRASTRUCTURE_REPOSITORIES, INFRASTRUCTURE_MAPPERS, INFRASTRUCTURE_ENTITIES, TRANSPORT_PROVIDERS) and spread them in @Module. Always import CqrsModule. Use useClass (not useExisting) for repository DI tokens.
+    - Constructor = hydration only; domain events from named instance methods only
+    - "Logging: every transport entry point (controller method, resolver method) MUST log at entry with the relevant ID/input. Every command handler MUST log on completion. Every query handler MUST log at entry. Infrastructure services performing external I/O (HTTP calls, file generation, etc.) MUST log start and completion. Use NestJS Logger (private readonly logger = new Logger(ClassName.name)). Do NOT log inside assert services or domain methods."
+    - Resolvers use CommandBus/QueryBus only — no direct service injection in transport
+    - "MCP tools: every bounded context that should be AI-callable exposes its public commands and queries as MCP tools under transport/mcp/. Each tool is a class named {Name}McpTool implementing IMcpTool (from @sisques-labs/nestjs-kit/mcp), tagged with @McpTool() + @Injectable(), and registered in the context module via an MCP_TOOLS const array spread into providers. Tools dispatch through CommandBus/QueryBus only (like resolvers) and read request context from the injected IMcpToolContext. Each tool's Zod inputSchema lives in its own file under transport/mcp/schemas/ ({name}.schema.ts), never inline. Wire-level tool names are snake_case prefixed by the entity (e.g. order_create). The shared MCP transport (single /api/mcp endpoint, discovery, per-request server, McpModule.forRoot({ name, version, contextBuilder })) lives in @sisques-labs/nestjs-kit/mcp — see its README for the IMcpContextBuilder extension point. Do NOT expose credential/session or PII-sensitive contexts without an explicit decision."
+    - Repository interfaces live in domain; never import infra from domain
+    - No module spec files; unit tests use jest.Mocked<T>, no @nestjs/testing
+    - Imports: always use @contexts/{context}/ path aliases for any cross-directory import within a bounded context. Relative ../ imports are forbidden. Same-directory ./ imports are allowed.
+    - Value objects named {Name}ValueObject (not VO); extend UuidValueObject/StringValueObject/EnumValueObject from @sisques-labs/nestjs-kit
+    - Enums live in domain/enums/, enum value objects extend EnumValueObject<typeof EnumType>
+    - Commands have {Name}CommandInput interface with primitive fields (string, number, etc.); the Command class fields MUST be value objects constructed from the input in the constructor. Same rule applies to Queries.
+    - Aggregate fields MUST always be value objects — never raw primitives (string, number, boolean). Use StringValueObject, NumberValueObject, UuidValueObject or a domain-specific subclass from @sisques-labs/nestjs-kit. Builders receive primitives and wrap them in VOs; toPrimitives() unwraps with .value. IBasePrimitives and ViewModels hold primitives (correct — they are the serialized form).
+    - Queries have {Name}QueryInput type alias or use Criteria for list queries
+    - "Every findByCriteria query MUST use the type-safe Criteria pattern — mandatory for every context, no exception for contexts with few fields. Required pieces per context: (1) transport/graphql/enums/{context}-queryable-field.enum.ts — a `{Context}QueryableField` enum whitelisting every scalar/FK field on that context's ViewModel that maps to a real column; register it via registerEnumType as `{Context}QueryableFieldEnum` in the context's existing `{context}-registered-enums.graphql.ts`. Exclude resolved/nested fields that aren't real columns (use their `*Id` counterpart instead). (2) transport/graphql/registries/{context}-filterable-fields.registry.ts — a `{context}FilterableFields: FilterFieldRegistry<{Context}QueryableField>` mapping each field to its expected value shape; enum-backed columns MUST use `{ type: 'enum', enum: TheRealDomainEnum }` — never a duplicated string list. Give it a co-located `.spec.ts` asserting every enum value has a registry entry plus the enum-membership/whitelist-rejection cases. (3) transport/graphql/dtos/requests/{context}-filter.input.ts and -sort.input.ts — `@InputType('{Context}FilterInput') export class {Context}FilterInput extends createFilterInput({Context}QueryableField, '{Context}') {}` (same for Sort/createSortInput), both from @sisques-labs/nestjs-kit. (4) The `{Context}FindByCriteriaRequestDto` overrides `filters`/`sorts` to `{Context}FilterInput[]`/`{Context}SortInput[]` (declare + @Type()), keeping the existing class name and GraphQL type name. (5) Wire `new FilterValidationPipe({context}FilterableFields)` as the third arg of `@Args('input', { nullable: true }, ...)` on the `{context}sFindByCriteria` resolver method. (6) The TypeORM read repository's findByCriteria MUST actually translate criteria.filters via QueryBuilder (never just apply pagination/sort and drop filters) covering all 8 FilterOperator values (EQUALS, NOT_EQUALS, LIKE, IN, GREATER_THAN(_OR_EQUAL), LESS_THAN(_OR_EQUAL))."
+    - Aggregates constructed via Builder (BaseBuilder from nestjs-kit); NO static factory methods
+    - Assert services (assert-{entity}-exists, assert-{entity}-view-model-exists) in application/services/write|read/; handlers use them instead of raw findById + manual throw. Inject by class type only — no @Inject() decorator needed for concrete classes.
+    - Repository interfaces extend IBaseReadRepository<ViewModel> or IBaseWriteRepository<Aggregate>
+    - Primitives type extends BasePrimitives; ViewModel extends BaseViewModel
+    - Event data interfaces live in domain/events/interfaces/
+    - Domain interfaces (e.g. IOrder) in domain/interfaces/ use value objects (not primitives)
+    - One type per file. Each interface/type alias lives in its OWN file named after it. Do NOT co-locate multiple interfaces in one file, and do NOT declare port-input/shape types inline inside the port file — extract them. The only exception is {Name}CommandInput/{Name}QueryInput, which stay inline in their {Name}.command.ts/{Name}.query.ts.
+    - "Cross-context boundary: a bounded context may only import its own @contexts/{self}/. Reaching another context's domain/application is allowed EXCLUSIVELY from infrastructure/adapters/ (a port implementation). Define a port interface in application/ports/ and an adapter in infrastructure/adapters/ that translates via Command/QueryBus; the domain/application/transport layers depend on the port, never on the other context. Enforced by the boundaries/element-types ESLint rule."
+  verify:
+    test_command: "pnpm test"
+    integration_command: "pnpm test:integration"
+    e2e_command: "pnpm test:e2e"
+    build_command: "pnpm build"
+    coverage_threshold: 80
+  archive:
+    - Warn before merging destructive deltas
