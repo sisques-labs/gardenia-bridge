@@ -1,13 +1,13 @@
 {
-  "name": "sisqueslabs/nestjs-template",
-  "version": "0.1.1",
-  "description": "Sisques Labs NestJS service template — DDD+CQRS+Hexagonal, TypeORM/Postgres, Kafka, GraphQL+REST, Sentry, Prometheus, MCP.",
+  "name": "sisqueslabs/gardenia-bridge",
+  "version": "0.0.0",
+  "description": "Gardenia Bridge is the edge gateway that securely connects IoT devices to the Gardenia platform. It translates MQTT traffic into Kafka events, dispatches commands back to devices, manages OTA updates, and provides a reliable communication layer between local networks and the cloud.",
   "author": "Sisques Labs",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sisques-labs/nestjs-template.git"
+    "url": "https://github.com/sisques-labs/gardenia-bridge.git"
   },
-  "homepage": "https://github.com/sisques-labs/nestjs-template",
+  "homepage": "https://github.com/sisques-labs/gardenia-bridge",
   "private": true,
   "license": "UNLICENSED",
   "packageManager": "pnpm@9.15.4",
