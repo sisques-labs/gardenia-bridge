@@ -17,8 +17,9 @@ messages; it validates shape, translates, and forwards.
 Two flows, both best-effort (MQTT QoS 0/1, no DLQ, no retries in v1):
 
 - **Node → Kafka**: sensors publish `telemetry` and `heartbeat`; nodes publish
-  `command-ack` after executing a command. All three land on a single Kafka
-  topic (`gardenia-bridge.events`), keyed by `nodeId`.
+  `command-ack` after executing a command. Each type lands on its own Kafka
+  topic (`gardenia-bridge.telemetry`, `gardenia-bridge.heartbeat`,
+  `gardenia-bridge.command-acks`), keyed by `nodeId`.
 - **Kafka → Node**: any producer (today: nobody yet — `gardenia-api` is not
   wired in this change) publishes a `command` to `gardenia-bridge.commands`;
   the bridge relays it to the target node's MQTT command topic.
@@ -48,7 +49,8 @@ for exactly what applies and what doesn't, and why.
   hardcoded broker, mirroring how `KAFKA_*` / `DATABASE_*` are already
   configured in this template.
 - A dedicated Kafka producer/consumer for the bridge's own topics
-  (`gardenia-bridge.events` / `gardenia-bridge.commands`), built directly on
+  (`gardenia-bridge.telemetry` / `.heartbeat` / `.command-acks` /
+  `.commands`), built directly on
   `kafkajs` (already a dependency) — **not** `@sisques-labs/nestjs-kit`'s
   `MessagingModule`, which is purpose-built for forwarding domain events from
   CQRS aggregates and doesn't apply here (this context has none).
@@ -59,16 +61,19 @@ for exactly what applies and what doesn't, and why.
 - MQTT topic scheme: `sensors/{nodeId}/{sensorType}/telemetry`,
   `nodes/{nodeId}/heartbeat`, `nodes/{nodeId}/commands/ack`,
   `nodes/{nodeId}/commands`.
-- Kafka topic scheme: `gardenia-bridge.events` (all three inbound types,
-  discriminated by `type`), `gardenia-bridge.commands` (outbound). Both keyed
-  by `nodeId` for per-node ordering (no global ordering guarantee).
+- Kafka topic scheme, **one topic per message type from the start**:
+  `gardenia-bridge.telemetry`, `gardenia-bridge.heartbeat`,
+  `gardenia-bridge.command-acks` (all node → Kafka), `gardenia-bridge.commands`
+  (Kafka → node). All four keyed by `nodeId` for per-node ordering (no global
+  ordering guarantee).
 - SQLite audit log (`better-sqlite3` via a second TypeORM connection,
   independent of the main Postgres connection): one row per message processed
   — direction, type, nodeId, source topic, destination topic, raw payload,
   timestamp, outcome (success/error + reason).
 - Config: MQTT connection (`MQTT_*`), bridge Kafka topics
-  (`KAFKA_BRIDGE_EVENTS_TOPIC`, `KAFKA_BRIDGE_COMMANDS_TOPIC`, reusing the
-  existing `KAFKA_ENABLED`/`KAFKA_BROKERS`/`KAFKA_SSL`/`KAFKA_SASL_*`
+  (`KAFKA_BRIDGE_TELEMETRY_TOPIC`, `KAFKA_BRIDGE_HEARTBEAT_TOPIC`,
+  `KAFKA_BRIDGE_COMMAND_ACKS_TOPIC`, `KAFKA_BRIDGE_COMMANDS_TOPIC`, reusing
+  the existing `KAFKA_ENABLED`/`KAFKA_BROKERS`/`KAFKA_SSL`/`KAFKA_SASL_*`
   connection vars — one Kafka cluster, one set of connection vars), and
   SQLite (`BRIDGE_AUDIT_DB_PATH`).
 - Register `NodesModule` in `CONTEXT_MODULES` (`src/contexts/contexts.module.ts`).
@@ -89,7 +94,7 @@ for exactly what applies and what doesn't, and why.
 - **At-least-once delivery, retries, dead-letter handling, deduplication** —
   best-effort only in this version.
 - **`gardenia-api` integration** — no consumer is wired up on the
-  `gardenia-api` side to read `gardenia-bridge.events` or produce
+  `gardenia-api` side to read the bridge's node→Kafka topics or produce to
   `gardenia-bridge.commands`. This change only builds and proves the bridge in
   isolation (e.g. via `mosquitto_pub`/a local Kafka consumer in tests). Wiring
   a real producer/consumer into `gardenia-api` is a follow-up change in that
@@ -139,11 +144,13 @@ for exactly what applies and what doesn't, and why.
   written via a plain write repository (still a hexagonal port —
   `domain/repositories/write/bridge-message-log-write.repository.ts` — just
   without the aggregate on the other end of it).
-- **Two Kafka topics, not four.** `gardenia-bridge.events` carries all three
-  inbound message types with a `type` discriminant, keeping the "one Kafka
-  topic per concern" footprint small for a best-effort v1; splitting by type
-  later is a non-breaking follow-up (new topic + dual-write period) if volume
-  or consumer-side filtering ever demands it.
+- **One Kafka topic per message type, from the start.** `telemetry`,
+  `heartbeat`, and `command-ack` each get their own topic rather than sharing
+  one discriminated-by-`type` topic. A consumer that only cares about
+  heartbeats (e.g. a liveness dashboard) subscribes to
+  `gardenia-bridge.heartbeat` alone, without pulling telemetry volume and
+  filtering it out. Each topic also has one exact message shape, so a
+  consumer's deserializer doesn't need to branch on a discriminant field.
 - **Bridge owns its own Kafka topic namespace** (`gardenia-bridge.*`), not
   `gardenia-api.*` — the bridge is the integration boundary for IoT traffic;
   any service (starting with, but not limited to, `gardenia-api`) that wants
@@ -177,7 +184,7 @@ for exactly what applies and what doesn't, and why.
 | No MQTT auth means anyone who can reach the broker can spoof node traffic | Med (accepted for dev/PoC) | Explicitly out of scope by decision; design doesn't preclude adding broker-level auth or mutual TLS later (client config already reads credentials from env, just unset) |
 | Two independent I/O systems (MQTT + Kafka) both need to be up for the bridge to do anything useful | Med | Each has its own health indicator; the service still boots and stays up if one side is down (mirrors `KAFKA_ENABLED` opt-in pattern), logging connection state changes |
 | Second TypeORM `DataSource` (SQLite) alongside the existing Postgres one is a new pattern for this template | Low | Isolated to `nodes`; documented explicitly in `design.md`; no other context is forced to adopt it |
-| `gardenia-bridge.events` mixing three message types behind one `type` field could get unwieldy if volume/shape diverges a lot per type | Low | Documented as a deliberate, revisitable v1 simplification, not a hard architectural commitment |
+| Four bridge-owned Kafka topics from day one, with no real consumer yet, is more topic surface than is proven necessary | Low | Accepted trade-off for consumer-side simplicity (see Approach); topics are cheap to create and each has a narrow, stable schema |
 | SQLite file growth on a long-running edge deployment with no retention policy | Low | Explicitly flagged as an Open Question / out of scope; not blocking v1 |
 
 ## Rollback Plan
@@ -200,12 +207,13 @@ No Postgres migration, no impact on any other context or service.
 
 ## Success Criteria
 
-- [ ] Publishing a well-formed `telemetry` or `heartbeat` message on the
-      expected MQTT topic results in a matching message on
-      `gardenia-bridge.events`, keyed by `nodeId`.
+- [ ] Publishing a well-formed `telemetry` message results in a matching
+      message on `gardenia-bridge.telemetry`, keyed by `nodeId`.
+- [ ] Publishing a well-formed `heartbeat` message results in a matching
+      message on `gardenia-bridge.heartbeat`, keyed by `nodeId`.
 - [ ] Publishing a well-formed `command-ack` on
       `nodes/{nodeId}/commands/ack` results in a matching message on
-      `gardenia-bridge.events`.
+      `gardenia-bridge.command-acks`, keyed by `nodeId`.
 - [ ] Producing a well-formed `command` on `gardenia-bridge.commands` results
       in a matching MQTT publish on `nodes/{nodeId}/commands`.
 - [ ] A malformed payload (either direction) is rejected at the boundary,

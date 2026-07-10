@@ -18,7 +18,10 @@ MQTT broker                                          Kafka cluster
   │                     ▼                                │
   │              ForwardNodeEventToKafkaCommand          │
   │                     │                                │
-  │                     ├─► KafkaBridgeEventsProducer ──►│ gardenia-bridge.events
+  │                     ├─► KafkaBridgeProducerService ─►│ gardenia-bridge.telemetry
+  │                     │                                │  gardenia-bridge.heartbeat
+  │                     │                                │  gardenia-bridge.command-acks
+  │                     │                                │  (topic resolved from envelope.type)
   │                     └─► BridgeMessageLog (SQLite)     │
   │                                                       │
   │                                        gardenia-bridge.commands
@@ -69,10 +72,11 @@ explicit about the deviations matters more than usual.
 | Audit log modeling | Plain entity + write repository, no `Aggregate`/`Builder`/domain events | Full aggregate with `create()` emitting a `BridgeMessageLogged` event | It's an append-only side effect, not a business concept with invariants; there's nothing downstream that needs to react to "a log row was written" |
 | Kafka client for bridge topics | `kafkajs` directly, new thin producer/consumer wrappers in `infrastructure/kafka/` | `@sisques-labs/nestjs-kit`'s `MessagingModule` | That module's `aggregateModuleMap` is built for forwarding domain events emitted by CQRS aggregates in *this* service to `{prefix}.{module}` topics — `nodes` emits no domain events and needs producer/consumer control (topic name, key, offsets) `MessagingModule` doesn't expose |
 | Kafka topic ownership/prefix | Bridge's own prefix, `gardenia-bridge.*` (not `gardenia-api.*`) | Publish under `gardenia-api`'s prefix | The bridge is the IoT integration boundary; it shouldn't need to know or agree on another service's topic prefix to exist. Any consumer subscribes from outside this repo |
-| Inbound topic shape | One topic (`gardenia-bridge.events`) for `telemetry`/`heartbeat`/`command-ack`, discriminated by `type` | Three separate topics, one per message type | Lower operational footprint for a best-effort v1 with unproven volume; splitting later is additive (new topic, no breaking change to existing consumers of the old one) |
-| Outbound topic shape | Separate `gardenia-bridge.commands` topic | Folding into `gardenia-bridge.events` with direction field | Direction changes both the producer and the consumer (node vs. platform); conflating them in one topic would force every consumer to filter both directions even though they only ever care about one |
-| Partition key | `nodeId` on both topics | No key (round-robin); composite key (`nodeId`+`type`) | Guarantees per-node ordering (a node's telemetry/heartbeat/acks, or the commands sent to it, arrive in emission order) without needing global ordering, which the best-effort v1 doesn't promise anyway |
-| Message envelope | `{ type, nodeId, timestamp, ...type-specific fields }`, one discriminated union, Zod-validated | Separate unrelated schemas per type with no shared envelope | A shared envelope lets `gardenia-bridge.events` carry three types uniformly and lets the audit log record `type`/`nodeId`/`timestamp` generically regardless of payload |
+| Inbound topic shape | **One topic per message type from the start**: `gardenia-bridge.telemetry`, `gardenia-bridge.heartbeat`, `gardenia-bridge.command-acks` | A single `gardenia-bridge.events` topic carrying all three, discriminated by `type` | User decision: separate topics from day one. A consumer that only wants heartbeats (e.g. a liveness dashboard) subscribes narrowly instead of pulling telemetry volume and filtering; each topic has one fixed schema instead of a discriminated union, so consumer-side deserialization doesn't need a `switch` on `type` |
+| Outbound topic shape | Separate `gardenia-bridge.commands` topic | Folding into an inbound topic with a direction field | Direction changes both the producer and the consumer (node vs. platform); conflating them in one topic would force every consumer to filter both directions even though they only ever care about one |
+| Partition key | `nodeId` on all four topics | No key (round-robin); composite key (`nodeId`+`type`) | Guarantees per-node ordering within each topic (a node's telemetry arrives in emission order, independent of its heartbeat/acks/commands) without needing global ordering, which the best-effort v1 doesn't promise anyway |
+| Message envelope | `{ type, nodeId, timestamp, ...type-specific fields }`, one discriminated union at the domain/validation level, Zod-validated | Fully separate, unrelated shapes per type with no shared envelope | Even with separate topics, a shared envelope keeps `nodeId`/`timestamp` handling (partition key, audit log fields) uniform across all four message kinds — the topic split is a transport/routing decision, not a reason to abandon a common shape at the domain level |
+| Producer topology | One `KafkaBridgeProducerService` (one `kafkajs` `Producer` client) that resolves the destination topic from `envelope.type` via config | Three separate producer service classes, one per topic | The routing logic (`type` → topic name) is a one-line lookup; three near-identical service classes would be boilerplate without a corresponding benefit. The application layer (`ForwardNodeEventToKafkaHandler`) is unaware of the topic split either way — it just calls `producer.send(envelope)` |
 | Delivery semantics | Best-effort: MQTT QoS 0/1, no Kafka transactional writes, no retry/backoff, no DLQ | At-least-once with retries + DLQ | Explicit user decision for v1 (telemetry loss tolerance); revisit if a use case needs guaranteed delivery (e.g. safety-critical commands) |
 | Node/device auth | None in v1 | Username/password per node; mutual TLS | Explicit user decision (dev/PoC stage). MQTT client config already reads `MQTT_USERNAME`/`MQTT_PASSWORD` from env (unset by default) so broker-level auth can be turned on later without a client code change; per-node identity/authorization is a bigger design (out of scope, see Open Questions) |
 | Audit persistence engine | SQLite via a second TypeORM `DataSource` (`better-sqlite3` driver) | (a) Raw `better-sqlite3` with hand-written SQL, no ORM (b) Reuse the existing Postgres connection instead of SQLite | (a) rejected: the template's entity/mapper/migration tooling (`pnpm migration:generate`, entity conventions, repository pattern) already exists for TypeORM — hand-rolled SQL would be a second, inconsistent persistence story for one table. (b) rejected: explicit requirement — the bridge is meant to run at the edge, near the nodes, without depending on network reachability to the central Postgres |
@@ -92,7 +96,11 @@ MQTT publish on sensors/{nodeId}/{sensorType}/telemetry
        │    ├─ invalid → BridgeMessageLog.record(direction=inbound, outcome=error) ── stop
        │    └─ valid → envelope
        └─ CommandBus.execute(ForwardNodeEventToKafkaCommand)
-            ├─ KafkaBridgeEventsProducer.send(topic=gardenia-bridge.events, key=nodeId, value=envelope)
+            ├─ KafkaBridgeProducerService.send(envelope, key=nodeId)
+            │    → topic resolved from envelope.type:
+            │        telemetry    → gardenia-bridge.telemetry
+            │        heartbeat    → gardenia-bridge.heartbeat
+            │        command-ack  → gardenia-bridge.command-acks
             └─ BridgeMessageLog.record(direction=inbound, outcome=success)
 
 KAFKA → NODE (command)
@@ -128,7 +136,7 @@ application/
   commands/forward-command-to-node/forward-command-to-node.handler.ts
 infrastructure/
   config/mqtt.config.ts                    # MqttConfig: url, username?, password?, clientId
-  config/bridge-kafka.config.ts            # BridgeKafkaConfig: eventsTopic, commandsTopic (reuses core kafka connection config)
+  config/bridge-kafka.config.ts            # BridgeKafkaConfig: telemetryTopic, heartbeatTopic, commandAcksTopic, commandsTopic (reuses core kafka connection config)
   validation/schemas/bridge-message-envelope.schema.ts
   validation/schemas/telemetry-message.schema.ts
   validation/schemas/heartbeat-message.schema.ts
@@ -137,7 +145,7 @@ infrastructure/
   mqtt/mqtt-client.provider.ts              # wraps `mqtt` client; connect/reconnect/logging
   mqtt/mqtt-node-listener.service.ts        # subscribes on module init; topic → type resolution; dispatches ForwardNodeEventToKafkaCommand
   mqtt/mqtt-command-publisher.service.ts    # publish(nodeId, envelope)
-  kafka/kafka-bridge-events-producer.service.ts   # send(envelope) → gardenia-bridge.events, key=nodeId
+  kafka/kafka-bridge-producer.service.ts    # send(envelope, key=nodeId) → topic resolved from envelope.type (telemetry/heartbeat/command-acks)
   kafka/kafka-bridge-commands-consumer.service.ts # subscribes on module init; dispatches ForwardCommandToNodeCommand
   persistence/sqlite/entities/bridge-message-log.entity.ts
   persistence/sqlite/repositories/bridge-message-log-typeorm.repository.ts
@@ -154,7 +162,7 @@ README.md
 | `src/database/migrations-sqlite/<ts>-CreateBridgeMessageLog.ts` | Create | `bridge_message_log` table |
 | `src/contexts/contexts.module.ts` | Modify | Register `NodesModule` |
 | `src/core/config/mqtt.config.ts` | Create | `MQTT_URL`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `MQTT_CLIENT_ID` |
-| `src/core/config/kafka.config.ts` | Modify | Add `KAFKA_BRIDGE_EVENTS_TOPIC` (default `${KAFKA_TOPIC_PREFIX}.events`), `KAFKA_BRIDGE_COMMANDS_TOPIC` (default `${KAFKA_TOPIC_PREFIX}.commands`) |
+| `src/core/config/kafka.config.ts` | Modify | Add `KAFKA_BRIDGE_TELEMETRY_TOPIC` (default `${KAFKA_TOPIC_PREFIX}.telemetry`), `KAFKA_BRIDGE_HEARTBEAT_TOPIC` (default `${KAFKA_TOPIC_PREFIX}.heartbeat`), `KAFKA_BRIDGE_COMMAND_ACKS_TOPIC` (default `${KAFKA_TOPIC_PREFIX}.command-acks`), `KAFKA_BRIDGE_COMMANDS_TOPIC` (default `${KAFKA_TOPIC_PREFIX}.commands`) |
 | `docker-compose.yml` | Modify | Add `mosquitto` service (dev broker) |
 | `.env.example` | Modify | Add `MQTT_*`, `KAFKA_BRIDGE_*`, `BRIDGE_AUDIT_DB_PATH`; fix `nestjs-template` → `gardenia-bridge` defaults |
 | `package.json` | Modify | `mqtt`, `better-sqlite3` (+ `@types/better-sqlite3` dev), `aedes` (dev), Kafka testcontainers module (dev) |
@@ -280,12 +288,8 @@ topics that nothing else currently reads or writes.
   add a scheduled prune (e.g. keep last N days) — deferred until it's an
   actual problem, since the audit log's exact shelf life depends on
   deployment specifics not yet decided. *(Out of scope for this change.)*
-- **Splitting `gardenia-bridge.events` by type**: if a consumer only ever
-  wants `telemetry` and not `heartbeat`/`command-ack`, per-type topics would
-  let it subscribe more narrowly. Deferred until there's a real consumer with
-  that need (there is none yet — `gardenia-api` isn't wired up in this
-  change). *(Out of scope for this change.)*
 - **`gardenia-api` consumer/producer**: this change proves the bridge in
-  isolation. Wiring a real Kafka consumer (for `gardenia-bridge.events`) and
-  producer (for `gardenia-bridge.commands`) into `gardenia-api` is explicitly
-  a separate, future change in that repo. *(Out of scope for this change.)*
+  isolation. Wiring real Kafka consumers (for `gardenia-bridge.telemetry` /
+  `.heartbeat` / `.command-acks`) and a producer (for
+  `gardenia-bridge.commands`) into `gardenia-api` is explicitly a separate,
+  future change in that repo. *(Out of scope for this change.)*

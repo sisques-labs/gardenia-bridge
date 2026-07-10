@@ -52,9 +52,14 @@ The bridge MUST subscribe to `sensors/+/+/telemetry`, `nodes/+/heartbeat`, and
 `nodes/+/commands/ack` on the configured MQTT broker. On receiving a message
 on any of these topics, it MUST resolve the expected message `type` from the
 topic pattern, extract `nodeId` from the topic, parse and validate the
-payload, and — on success — publish the validated envelope to the
-`gardenia-bridge.events` Kafka topic (configurable via
-`KAFKA_BRIDGE_EVENTS_TOPIC`), using `nodeId` as the partition key.
+payload, and — on success — publish the validated envelope to the Kafka topic
+matching its type, using `nodeId` as the partition key:
+
+| Message type | Kafka topic | Config var | Default |
+|---|---|---|---|
+| `telemetry` | — | `KAFKA_BRIDGE_TELEMETRY_TOPIC` | `${KAFKA_TOPIC_PREFIX}.telemetry` |
+| `heartbeat` | — | `KAFKA_BRIDGE_HEARTBEAT_TOPIC` | `${KAFKA_TOPIC_PREFIX}.heartbeat` |
+| `command-ack` | — | `KAFKA_BRIDGE_COMMAND_ACKS_TOPIC` | `${KAFKA_TOPIC_PREFIX}.command-acks` |
 
 On validation failure, the message MUST NOT be published to Kafka, and the
 failure MUST be recorded (see "Audit Logging").
@@ -63,25 +68,25 @@ failure MUST be recorded (see "Audit Logging").
 
 - GIVEN the bridge is connected to both the MQTT broker and Kafka
 - WHEN a valid `telemetry` payload is published on `sensors/node-1/soil-moisture/telemetry`
-- THEN a message with that payload is produced to `gardenia-bridge.events` with key `node-1`
+- THEN a message with that payload is produced to `gardenia-bridge.telemetry` with key `node-1`
 
 #### Scenario: Heartbeat relayed to Kafka
 
 - GIVEN the bridge is connected to both the MQTT broker and Kafka
 - WHEN a valid `heartbeat` payload is published on `nodes/node-1/heartbeat`
-- THEN a message with that payload is produced to `gardenia-bridge.events` with key `node-1`
+- THEN a message with that payload is produced to `gardenia-bridge.heartbeat` with key `node-1`
 
 #### Scenario: Command-ack relayed to Kafka
 
 - GIVEN the bridge is connected to both the MQTT broker and Kafka
 - WHEN a valid `command-ack` payload is published on `nodes/node-1/commands/ack`
-- THEN a message with that payload is produced to `gardenia-bridge.events` with key `node-1`
+- THEN a message with that payload is produced to `gardenia-bridge.command-acks` with key `node-1`
 
 #### Scenario: Invalid payload not forwarded
 
 - GIVEN the bridge is connected to both the MQTT broker and Kafka
 - WHEN a malformed payload is published on `sensors/node-1/soil-moisture/telemetry`
-- THEN no message is produced to `gardenia-bridge.events`
+- THEN no message is produced to `gardenia-bridge.telemetry` (or any other bridge topic)
 
 ---
 
@@ -145,7 +150,7 @@ observability, not a transactional guarantee tied to the relay itself).
 
 - GIVEN the bridge successfully relays a valid `telemetry` message
 - WHEN the audit log is inspected
-- THEN it contains one row with direction=inbound, type=telemetry, outcome=success, and the destination topic set to the Kafka events topic
+- THEN it contains one row with direction=inbound, type=telemetry, outcome=success, and the destination topic set to `gardenia-bridge.telemetry`
 
 #### Scenario: Validation failure is logged
 
@@ -179,18 +184,21 @@ transitions (connected, disconnected, reconnecting).
 
 ### Requirement: Bridge Kafka Topic Configuration
 
-The Kafka topics used by the bridge MUST be configurable
-(`KAFKA_BRIDGE_EVENTS_TOPIC`, default `${KAFKA_TOPIC_PREFIX}.events`;
-`KAFKA_BRIDGE_COMMANDS_TOPIC`, default `${KAFKA_TOPIC_PREFIX}.commands`), and
-MUST reuse the existing Kafka connection configuration
-(`KAFKA_ENABLED`, `KAFKA_BROKERS`, `KAFKA_SSL`, `KAFKA_SASL_*`) rather than
-introducing a second, parallel set of broker-connection variables.
+The four Kafka topics used by the bridge (`telemetry`, `heartbeat`,
+`command-acks`, `commands`) MUST each be independently configurable
+(`KAFKA_BRIDGE_TELEMETRY_TOPIC`, `KAFKA_BRIDGE_HEARTBEAT_TOPIC`,
+`KAFKA_BRIDGE_COMMAND_ACKS_TOPIC`, `KAFKA_BRIDGE_COMMANDS_TOPIC`), and MUST
+reuse the existing Kafka connection configuration (`KAFKA_ENABLED`,
+`KAFKA_BROKERS`, `KAFKA_SSL`, `KAFKA_SASL_*`) rather than introducing a
+second, parallel set of broker-connection variables.
 
 #### Scenario: Default topic names derived from prefix
 
 - GIVEN `KAFKA_TOPIC_PREFIX=gardenia-bridge` and no explicit topic overrides
 - WHEN the bridge starts
-- THEN it produces to `gardenia-bridge.events` and consumes from `gardenia-bridge.commands`
+- THEN it produces telemetry to `gardenia-bridge.telemetry`, heartbeats to
+  `gardenia-bridge.heartbeat`, command-acks to `gardenia-bridge.command-acks`,
+  and consumes commands from `gardenia-bridge.commands`
 
 ---
 
