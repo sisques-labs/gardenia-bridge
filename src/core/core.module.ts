@@ -1,8 +1,10 @@
 import { appConfig } from './config/app.config';
 import { validateEnv } from './config/env.validation';
 import { kafkaConfig } from './config/kafka.config';
+import { mqttConfig } from './config/mqtt.config';
 import { postgresConfig } from './config/postgres.config';
 import { sentryConfig } from './config/sentry.config';
+import { sqliteAuditConfig } from './config/sqlite-audit.config';
 import { AGGREGATE_MODULE_MAP } from './messaging/domain/topics/aggregate-module.map.generated';
 import { HealthModule } from './health/health.module';
 import { ObservabilityModule } from './observability/observability.module';
@@ -30,13 +32,34 @@ const CORE_MODULES = [
   ConfigModule.forRoot({
     isGlobal: true,
     validate: validateEnv,
-    load: [postgresConfig, appConfig, sentryConfig, kafkaConfig],
+    load: [
+      postgresConfig,
+      appConfig,
+      sentryConfig,
+      kafkaConfig,
+      mqttConfig,
+      sqliteAuditConfig,
+    ],
     cache: true,
   }),
   TypeOrmModule.forRootAsync({
     inject: [ConfigService],
     useFactory: (config: ConfigService) =>
       config.getOrThrow<TypeOrmModuleOptions>('postgres'),
+  }),
+  // Second, independent connection for the `nodes` bridge context's local
+  // SQLite audit log — see src/core/config/sqlite-audit.config.ts.
+  // Registered via forRoot (sync), not forRootAsync: @nestjs/typeorm 11 has
+  // a shutdown-hook bug when two forRootAsync() connections coexist (the
+  // second's TypeOrmCoreModule can't resolve its own DataSource token on
+  // app.close(), throwing "Nest could not find DataSource element"). The
+  // config here needs no async I/O — sqliteAuditConfig() just reads
+  // process.env synchronously (registerAs factories are directly callable)
+  // — so forRoot sidesteps the bug entirely. ConfigService still exposes it
+  // under 'sqliteAudit' for anything else that wants it.
+  TypeOrmModule.forRoot({
+    name: 'sqlite-audit',
+    ...sqliteAuditConfig(),
   }),
   // REST controllers are documented via Swagger (see main.ts). GraphQL is
   // wired alongside it — drop whichever transport this service doesn't use.

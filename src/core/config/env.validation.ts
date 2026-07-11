@@ -45,6 +45,15 @@ const baseEnvSchema = z
       .optional(),
     KAFKA_SASL_USERNAME: z.string().optional(),
     KAFKA_SASL_PASSWORD: z.string().optional(),
+    KAFKA_BRIDGE_TELEMETRY_TOPIC: z.string().optional(),
+    KAFKA_BRIDGE_HEARTBEAT_TOPIC: z.string().optional(),
+    KAFKA_BRIDGE_COMMAND_ACKS_TOPIC: z.string().optional(),
+    KAFKA_BRIDGE_COMMANDS_TOPIC: z.string().optional(),
+    MQTT_URL: z.string().optional(),
+    MQTT_USERNAME: z.string().optional(),
+    MQTT_PASSWORD: z.string().optional(),
+    MQTT_CLIENT_ID: z.string().optional(),
+    BRIDGE_AUDIT_DB_PATH: z.string().optional(),
   })
   .superRefine((env, ctx) => {
     if (env.KAFKA_ENABLED === 'true' && !env.KAFKA_BROKERS?.trim()) {

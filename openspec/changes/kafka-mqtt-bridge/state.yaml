@@ -1,0 +1,79 @@
+change: kafka-mqtt-bridge
+status: apply
+created: 2026-07-10
+artifact_store: hybrid
+context: nodes
+phases:
+  explore: skipped
+  proposal: done
+  spec: done
+  design: done
+  tasks: done
+  apply: done
+  verify: partial
+  archive: pending
+next_recommended:
+  - sdd-verify
+  - sdd-archive
+notes: |
+  Implemented in full: all 8 phases of tasks.md complete (domain,
+  application, MQTT/Kafka/SQLite infrastructure, module wiring, health
+  indicators, config, docker-compose, tests). Integration tests for `nodes`:
+  MQTT round-trip (embedded aedes broker) and SQLite audit-log round-trip
+  both executed and passing. Kafka round-trip via testcontainers was authored
+  (test/integration/nodes/kafka-bridge.integration-spec.ts), self-skips
+  gracefully when no Docker daemon is reachable, and ran for real against a
+  live broker in CI (GitHub Actions runners have Docker).
+
+  Post-review rework (PR #16, JSisques): review comments rejected the
+  original "no VOs / no aggregate" decision for this context. Reworked the
+  whole `nodes` context to (a) wrap every domain-facing primitive field in a
+  Value Object (17 new VOs), (b) model `BridgeMessageLog` as a full
+  `BridgeMessageLogAggregate` (`BaseAggregate` + `BridgeMessageLogBuilder` +
+  `BridgeMessageRecordedEvent`, published via `EventBus`/`publishEvents`),
+  and (c) move CQRS Commands to the org's primitives-in/VO-out constructor
+  pattern (`DeleteQrCommand`-style pick/omit). Zod still validates the raw
+  wire payload into primitives at the infra boundary; VO construction moved
+  to the Command constructor via new `domain/factories/*.factory.ts`
+  functions. `BridgeMessageLogBuilder` is deliberately NOT DI-registered
+  (unlike the org's `DOMAIN_BUILDERS` convention) because two call sites
+  `await` mid-build, which a shared singleton builder can't tolerate safely
+  under concurrency — see design.md for the full rationale. Registering
+  BridgeMessageLogAggregate also required regenerating
+  `aggregate-module.map.generated.ts` (`pnpm gen:topics`) — its domain event
+  now auto-forwards to `gardenia-bridge.nodes` via the kit's `MessagingModule`
+  outbox, on top of the bridge's own direct-kafkajs relay topics.
+  design.md/proposal.md updated in place to document the reversal; tasks.md
+  left as the historical record of the original implementation, with a new
+  Phase 9 appended for the rework itself.
+
+  Re-verified after the rework: tsc --noEmit clean, nest build green, eslint
+  clean, `pnpm gen:topics:check` clean, full unit suite green (213 tests
+  across 47 suites, incl. new specs for every VO/aggregate/builder/factory),
+  full `nodes` integration suite green (9 tests across 3 suites).
+
+  One notable implementation-time deviation from the original tasks.md text:
+  the MQTT/bridge-Kafka health indicators live in
+  src/contexts/nodes/infrastructure/health/ (not src/core/health/indicators/
+  as tasks.md 7.4/7.5 originally said) — they need this context's connection
+  state, so keeping them in `nodes` and having `HealthModule` import
+  `NodesModule` to compose them respects the domain/infra split better than
+  reaching from core into a context's internals. Documented as a deliberate
+  exception in src/contexts/nodes/README.md and design.md. tasks.md updated
+  to reflect the actual paths.
+
+  Design recap: stateless Kafka<->MQTT relay for IoT node traffic (telemetry,
+  heartbeat, command, command-ack) with a local SQLite audit log
+  (edge-deployment friendly, independent of the main Postgres connection).
+  No device registry, no business transport (GraphQL/REST/MCP), best-effort
+  delivery, no node auth in v1. One Kafka topic per message type from the
+  start (gardenia-bridge.telemetry / .heartbeat / .command-acks / .commands)
+  — a single KafkaBridgeProducerService resolves the destination topic from
+  envelope.type, so the application layer stays unaware of the topic split.
+  SQLite persistence via TypeORM + a second `better-sqlite3`-backed
+  DataSource (not raw SQL) — user confirmed after reviewing the alternative.
+
+  Remaining before archive: `gardenia-api` consumer/producer wiring is
+  explicitly out of scope for this change (see proposal.md). Running the
+  Kafka integration suite against a real broker (e.g. in CI, where Docker is
+  available) would close out `verify`.

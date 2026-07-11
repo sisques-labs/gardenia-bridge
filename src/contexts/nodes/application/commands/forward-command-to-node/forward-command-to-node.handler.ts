@@ -1,0 +1,101 @@
+import { Inject, Logger } from '@nestjs/common';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
+import { BaseCommandHandler, UuidValueObject } from '@sisques-labs/nestjs-kit';
+
+import { BridgeMessageLogAggregate } from '@contexts/nodes/domain/aggregates/bridge-message-log.aggregate';
+import { BridgeMessageLogBuilder } from '@contexts/nodes/domain/builders/bridge-message-log.builder';
+import { BridgeMessageDirectionEnum } from '@contexts/nodes/domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '@contexts/nodes/domain/enums/bridge-message-outcome.enum';
+import {
+  BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY,
+  IBridgeMessageLogWriteRepository,
+} from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
+import { MqttCommandPublisherService } from '@contexts/nodes/infrastructure/mqtt/mqtt-command-publisher.service';
+import { ForwardCommandToNodeCommand } from './forward-command-to-node.command';
+
+@CommandHandler(ForwardCommandToNodeCommand)
+export class ForwardCommandToNodeHandler
+  extends BaseCommandHandler<
+    ForwardCommandToNodeCommand,
+    BridgeMessageLogAggregate
+  >
+  implements ICommandHandler<ForwardCommandToNodeCommand, void>
+{
+  private readonly logger = new Logger(ForwardCommandToNodeHandler.name);
+
+  constructor(
+    private readonly mqttCommandPublisher: MqttCommandPublisherService,
+    @Inject(BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY)
+    private readonly bridgeMessageLogWriteRepository: IBridgeMessageLogWriteRepository,
+    private readonly bridgeMessageLogBuilder: BridgeMessageLogBuilder,
+    eventBus: EventBus,
+  ) {
+    super(eventBus);
+  }
+
+  async execute(command: ForwardCommandToNodeCommand): Promise<void> {
+    const { sourceTopic, rawPayload, envelope } = command;
+
+    try {
+      const destinationTopic = await this.mqttCommandPublisher.publish(
+        envelope.nodeId.value,
+        envelope,
+      );
+      const now = new Date();
+
+      // The whole chain runs synchronously (no `await` in between `withId()`
+      // and `build()`) so that sharing `bridgeMessageLogBuilder` — a DI
+      // singleton — across concurrent `execute()` calls (the Kafka consumer
+      // can process messages before earlier ones finish) can never
+      // interleave two in-flight builds.
+      const aggregate = this.bridgeMessageLogBuilder
+        .withId(UuidValueObject.generate().value)
+        .withCreatedAt(now)
+        .withUpdatedAt(now)
+        .withDirection(BridgeMessageDirectionEnum.OUTBOUND)
+        .withType(envelope.type.value)
+        .withNodeId(envelope.nodeId.value)
+        .withSourceTopic(sourceTopic.value)
+        .withRawPayload(rawPayload.value)
+        .withProcessedAt(now.toISOString())
+        .withDestinationTopic(destinationTopic)
+        .withOutcome(BridgeMessageOutcomeEnum.SUCCESS)
+        .build();
+      aggregate.record();
+
+      await this.bridgeMessageLogWriteRepository.save(aggregate);
+      await this.publishEvents(aggregate);
+
+      this.logger.log(
+        `Forwarded command ${envelope.commandId.value} for node ${envelope.nodeId.value} from ${sourceTopic.value} to ${destinationTopic}`,
+      );
+    } catch (error) {
+      const errorReason =
+        error instanceof Error ? error.message : String(error);
+      const now = new Date();
+
+      const aggregate = this.bridgeMessageLogBuilder
+        .withId(UuidValueObject.generate().value)
+        .withCreatedAt(now)
+        .withUpdatedAt(now)
+        .withDirection(BridgeMessageDirectionEnum.OUTBOUND)
+        .withType(envelope.type.value)
+        .withNodeId(envelope.nodeId.value)
+        .withSourceTopic(sourceTopic.value)
+        .withRawPayload(rawPayload.value)
+        .withProcessedAt(now.toISOString())
+        .withDestinationTopic(null)
+        .withOutcome(BridgeMessageOutcomeEnum.ERROR)
+        .withErrorReason(errorReason)
+        .build();
+      aggregate.record();
+
+      await this.bridgeMessageLogWriteRepository.save(aggregate);
+      await this.publishEvents(aggregate);
+
+      this.logger.error(
+        `Failed to forward command ${envelope.commandId.value} for node ${envelope.nodeId.value} from ${sourceTopic.value}: ${errorReason}`,
+      );
+    }
+  }
+}
