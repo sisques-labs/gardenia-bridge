@@ -7,6 +7,7 @@ import { connect, MqttClient } from 'mqtt';
 
 import { mqttConfig } from '@core/config/mqtt.config';
 import { ForwardNodeEventToKafkaHandler } from '@contexts/nodes/application/commands/forward-node-event-to-kafka/forward-node-event-to-kafka.handler';
+import { BridgeMessageLogBuilder } from '@contexts/nodes/domain/builders/bridge-message-log.builder';
 import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 import { buildCommandMessage } from '@contexts/nodes/domain/factories/command-message.factory';
 import {
@@ -78,6 +79,7 @@ describe('MQTT bridge — aedes integration', () => {
         MqttNodeListenerService,
         MqttCommandPublisherService,
         ForwardNodeEventToKafkaHandler,
+        BridgeMessageLogBuilder,
         { provide: KafkaBridgeProducerService, useValue: fakeProducer },
         {
           provide: BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY,

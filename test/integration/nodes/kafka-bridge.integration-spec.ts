@@ -6,6 +6,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { kafkaConfig } from '@core/config/kafka.config';
 import { ForwardCommandToNodeHandler } from '@contexts/nodes/application/commands/forward-command-to-node/forward-command-to-node.handler';
+import { BridgeMessageLogBuilder } from '@contexts/nodes/domain/builders/bridge-message-log.builder';
 import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 import { buildTelemetryMessage } from '@contexts/nodes/domain/factories/node-event-message.factory';
 import {
@@ -86,6 +87,7 @@ describe('Kafka bridge — testcontainers integration', () => {
           KafkaBridgeProducerService,
           KafkaBridgeCommandsConsumerService,
           ForwardCommandToNodeHandler,
+          BridgeMessageLogBuilder,
           { provide: MqttCommandPublisherService, useValue: fakePublisher },
           {
             provide: BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY,

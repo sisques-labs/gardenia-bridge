@@ -33,6 +33,7 @@ export class MqttNodeListenerService implements OnModuleInit {
     private readonly eventBus: EventBus,
     @Inject(BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY)
     private readonly bridgeMessageLogWriteRepository: IBridgeMessageLogWriteRepository,
+    private readonly bridgeMessageLogBuilder: BridgeMessageLogBuilder,
   ) {}
 
   onModuleInit(): void {
@@ -87,7 +88,7 @@ export class MqttNodeListenerService implements OnModuleInit {
         // building the audit entry itself gets its own safety net; a broken
         // audit write must never crash the listener.
         const now = new Date();
-        const aggregate = new BridgeMessageLogBuilder()
+        const aggregate = this.bridgeMessageLogBuilder
           .withId(UuidValueObject.generate().value)
           .withCreatedAt(now)
           .withUpdatedAt(now)

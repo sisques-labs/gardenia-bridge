@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ForwardCommandToNodeHandler } from './application/commands/forward-command-to-node/forward-command-to-node.handler';
 import { ForwardNodeEventToKafkaHandler } from './application/commands/forward-node-event-to-kafka/forward-node-event-to-kafka.handler';
+import { BridgeMessageLogBuilder } from './domain/builders/bridge-message-log.builder';
 import { BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY } from './domain/repositories/write/bridge-message-log-write.repository';
 import { BridgeKafkaHealthIndicator } from './infrastructure/health/bridge-kafka.health-indicator';
 import { MqttHealthIndicator } from './infrastructure/health/mqtt.health-indicator';
@@ -19,6 +20,8 @@ const COMMAND_HANDLERS = [
   ForwardNodeEventToKafkaHandler,
   ForwardCommandToNodeHandler,
 ];
+
+const DOMAIN_BUILDERS = [BridgeMessageLogBuilder];
 
 const INFRASTRUCTURE_REPOSITORIES = [
   {
@@ -51,6 +54,7 @@ const HEALTH_INDICATORS = [MqttHealthIndicator, BridgeKafkaHealthIndicator];
   ],
   providers: [
     ...COMMAND_HANDLERS,
+    ...DOMAIN_BUILDERS,
     ...INFRASTRUCTURE_REPOSITORIES,
     ...INFRASTRUCTURE_SERVICES,
     ...HEALTH_INDICATORS,

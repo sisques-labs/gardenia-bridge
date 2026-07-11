@@ -37,6 +37,7 @@ export class KafkaBridgeCommandsConsumerService
     private readonly eventBus: EventBus,
     @Inject(BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY)
     private readonly bridgeMessageLogWriteRepository: IBridgeMessageLogWriteRepository,
+    private readonly bridgeMessageLogBuilder: BridgeMessageLogBuilder,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -110,7 +111,7 @@ export class KafkaBridgeCommandsConsumerService
 
       try {
         const now = new Date();
-        const aggregate = new BridgeMessageLogBuilder()
+        const aggregate = this.bridgeMessageLogBuilder
           .withId(UuidValueObject.generate().value)
           .withCreatedAt(now)
           .withUpdatedAt(now)

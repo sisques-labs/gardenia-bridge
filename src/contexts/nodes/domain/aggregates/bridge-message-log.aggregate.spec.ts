@@ -17,28 +17,26 @@ const NODE_ID = '11111111-1111-4111-8111-111111111111';
 const NOW = new Date('2026-07-10T10:00:00.000Z');
 
 const buildAggregate = (): BridgeMessageLogAggregate =>
-  new BridgeMessageLogAggregate(
-    new UuidValueObject(ID),
-    {
-      direction: new BridgeMessageDirectionValueObject(
-        BridgeMessageDirectionEnum.INBOUND,
-      ),
-      type: new BridgeMessageTypeValueObject(BridgeMessageTypeEnum.TELEMETRY),
-      nodeId: new NodeIdValueObject(NODE_ID),
-      sourceTopic: new TopicValueObject(
-        `sensors/${NODE_ID}/soil-moisture/telemetry`,
-      ),
-      destinationTopic: new TopicValueObject('gardenia-bridge.telemetry'),
-      rawPayload: new RawPayloadValueObject('{"value":42.5}'),
-      outcome: new BridgeMessageOutcomeValueObject(
-        BridgeMessageOutcomeEnum.SUCCESS,
-      ),
-      errorReason: null,
-      processedAt: new DateValueObject(NOW),
-    },
-    new DateValueObject(NOW),
-    new DateValueObject(NOW),
-  );
+  new BridgeMessageLogAggregate({
+    id: new UuidValueObject(ID),
+    direction: new BridgeMessageDirectionValueObject(
+      BridgeMessageDirectionEnum.INBOUND,
+    ),
+    type: new BridgeMessageTypeValueObject(BridgeMessageTypeEnum.TELEMETRY),
+    nodeId: new NodeIdValueObject(NODE_ID),
+    sourceTopic: new TopicValueObject(
+      `sensors/${NODE_ID}/soil-moisture/telemetry`,
+    ),
+    destinationTopic: new TopicValueObject('gardenia-bridge.telemetry'),
+    rawPayload: new RawPayloadValueObject('{"value":42.5}'),
+    outcome: new BridgeMessageOutcomeValueObject(
+      BridgeMessageOutcomeEnum.SUCCESS,
+    ),
+    errorReason: null,
+    processedAt: new DateValueObject(NOW),
+    createdAt: new DateValueObject(NOW),
+    updatedAt: new DateValueObject(NOW),
+  });
 
 describe('BridgeMessageLogAggregate', () => {
   it('exposes the hydrated fields via getters', () => {

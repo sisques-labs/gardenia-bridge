@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { CommandBus, EventBus } from '@nestjs/cqrs';
 
 import { ForwardCommandToNodeCommand } from '@contexts/nodes/application/commands/forward-command-to-node/forward-command-to-node.command';
+import { BridgeMessageLogBuilder } from '@contexts/nodes/domain/builders/bridge-message-log.builder';
 import { IBridgeMessageLogWriteRepository } from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
 import { KafkaBridgeCommandsConsumerService } from './kafka-bridge-commands-consumer.service';
 
@@ -68,6 +69,7 @@ describe('KafkaBridgeCommandsConsumerService', () => {
       commandBus,
       eventBus,
       auditRepository,
+      new BridgeMessageLogBuilder(),
     );
   });
 

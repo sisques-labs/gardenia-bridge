@@ -30,23 +30,18 @@ export class BridgeMessageLogAggregate extends BaseAggregate {
   private readonly _errorReason: ErrorReasonValueObject | null;
   private readonly _processedAt: DateValueObject;
 
-  constructor(
-    id: UuidValueObject,
-    fields: IBridgeMessageLog,
-    createdAt: DateValueObject,
-    updatedAt: DateValueObject,
-  ) {
-    super(createdAt, updatedAt);
-    this._id = id;
-    this._direction = fields.direction;
-    this._type = fields.type;
-    this._nodeId = fields.nodeId;
-    this._sourceTopic = fields.sourceTopic;
-    this._destinationTopic = fields.destinationTopic;
-    this._rawPayload = fields.rawPayload;
-    this._outcome = fields.outcome;
-    this._errorReason = fields.errorReason;
-    this._processedAt = fields.processedAt;
+  constructor(props: IBridgeMessageLog) {
+    super(props.createdAt, props.updatedAt);
+    this._id = props.id;
+    this._direction = props.direction;
+    this._type = props.type;
+    this._nodeId = props.nodeId;
+    this._sourceTopic = props.sourceTopic;
+    this._destinationTopic = props.destinationTopic;
+    this._rawPayload = props.rawPayload;
+    this._outcome = props.outcome;
+    this._errorReason = props.errorReason;
+    this._processedAt = props.processedAt;
   }
 
   get id(): UuidValueObject {
@@ -92,19 +87,16 @@ export class BridgeMessageLogAggregate extends BaseAggregate {
   /** Emits BridgeMessageRecorded. Append-only — there is no update()/delete(). */
   record(): void {
     this.apply(
-      new BridgeMessageRecordedEvent(this._id.value, {
-        direction: this._direction.value as BridgeMessageDirectionEnum,
-        type: this._type.value as BridgeMessageTypeEnum,
-        nodeId: this._nodeId?.value ?? null,
-        sourceTopic: this._sourceTopic.value,
-        destinationTopic: this._destinationTopic?.value ?? null,
-        rawPayload: this._rawPayload.value,
-        outcome: this._outcome.value as BridgeMessageOutcomeEnum,
-        errorReason: this._errorReason?.value ?? null,
-        processedAt: this._processedAt.toISOString(),
-        createdAt: this.createdAt.value,
-        updatedAt: this.updatedAt.value,
-      }),
+      new BridgeMessageRecordedEvent(
+        {
+          aggregateRootId: this._id.value,
+          aggregateRootType: BridgeMessageLogAggregate.name,
+          entityId: this._id.value,
+          entityType: BridgeMessageLogAggregate.name,
+          eventType: BridgeMessageRecordedEvent.name,
+        },
+        this.toPrimitives(),
+      ),
     );
   }
 

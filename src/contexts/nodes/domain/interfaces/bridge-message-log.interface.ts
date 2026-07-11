@@ -1,4 +1,4 @@
-import { DateValueObject } from '@sisques-labs/nestjs-kit';
+import { DateValueObject, UuidValueObject } from '@sisques-labs/nestjs-kit';
 
 import { BridgeMessageDirectionValueObject } from '@contexts/nodes/domain/value-objects/bridge-message-direction/bridge-message-direction.value-object';
 import { BridgeMessageOutcomeValueObject } from '@contexts/nodes/domain/value-objects/bridge-message-outcome/bridge-message-outcome.value-object';
@@ -9,6 +9,7 @@ import { RawPayloadValueObject } from '@contexts/nodes/domain/value-objects/raw-
 import { TopicValueObject } from '@contexts/nodes/domain/value-objects/topic/topic.value-object';
 
 export interface IBridgeMessageLog {
+  id: UuidValueObject;
   direction: BridgeMessageDirectionValueObject;
   type: BridgeMessageTypeValueObject;
   nodeId: NodeIdValueObject | null;
@@ -18,4 +19,6 @@ export interface IBridgeMessageLog {
   outcome: BridgeMessageOutcomeValueObject;
   errorReason: ErrorReasonValueObject | null;
   processedAt: DateValueObject;
+  createdAt: DateValueObject;
+  updatedAt: DateValueObject;
 }

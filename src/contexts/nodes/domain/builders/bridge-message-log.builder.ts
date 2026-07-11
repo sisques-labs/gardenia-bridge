@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import {
   BaseBuilder,
   DateValueObject,
@@ -17,6 +18,7 @@ import { RawPayloadValueObject } from '@contexts/nodes/domain/value-objects/raw-
 import { TopicValueObject } from '@contexts/nodes/domain/value-objects/topic/topic.value-object';
 import { BridgeMessageLogViewModel } from '@contexts/nodes/domain/view-models/bridge-message-log.view-model';
 
+@Injectable()
 export class BridgeMessageLogBuilder extends BaseBuilder<
   BridgeMessageLogAggregate,
   BridgeMessageLogViewModel
@@ -83,22 +85,20 @@ export class BridgeMessageLogBuilder extends BaseBuilder<
   build(): BridgeMessageLogAggregate {
     this.validate();
 
-    return new BridgeMessageLogAggregate(
-      new UuidValueObject(this._id),
-      {
-        direction: this._direction,
-        type: this._type,
-        nodeId: this._nodeId,
-        sourceTopic: this._sourceTopic,
-        destinationTopic: this._destinationTopic,
-        rawPayload: this._rawPayload,
-        outcome: this._outcome,
-        errorReason: this._errorReason,
-        processedAt: this._processedAt,
-      },
-      new DateValueObject(this._createdAt),
-      new DateValueObject(this._updatedAt),
-    );
+    return new BridgeMessageLogAggregate({
+      id: new UuidValueObject(this._id),
+      direction: this._direction,
+      type: this._type,
+      nodeId: this._nodeId,
+      sourceTopic: this._sourceTopic,
+      destinationTopic: this._destinationTopic,
+      rawPayload: this._rawPayload,
+      outcome: this._outcome,
+      errorReason: this._errorReason,
+      processedAt: this._processedAt,
+      createdAt: new DateValueObject(this._createdAt),
+      updatedAt: new DateValueObject(this._updatedAt),
+    });
   }
 
   buildViewModel(): BridgeMessageLogViewModel {

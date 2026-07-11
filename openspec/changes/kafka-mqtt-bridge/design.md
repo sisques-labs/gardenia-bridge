@@ -170,7 +170,7 @@ domain/
                                              # buildNodeEventMessage (primitives → VO) + nodeEventMessageToPrimitives (VO → primitives)
   factories/command-message.factory.ts      # buildCommandMessage + commandMessageToPrimitives
   aggregates/bridge-message-log.aggregate.ts   # BridgeMessageLogAggregate extends BaseAggregate; record() emits BridgeMessageRecordedEvent
-  builders/bridge-message-log.builder.ts       # BridgeMessageLogBuilder extends BaseBuilder — NOT DI-registered (see below)
+  builders/bridge-message-log.builder.ts       # BridgeMessageLogBuilder extends BaseBuilder, DI-registered (see below)
   view-models/bridge-message-log.view-model.ts # satisfies IBuilder<Aggregate, ViewModel>; not exposed via any transport
   events/bridge-message-recorded/bridge-message-recorded.event.ts
   events/interfaces/bridge-message-log-event-data.interface.ts
@@ -200,17 +200,31 @@ nodes.module.ts
 README.md
 ```
 
-`BridgeMessageLogBuilder` is deliberately **not** registered as a DI provider
-in `nodes.module.ts`, unlike the org-standard `DOMAIN_BUILDERS` pattern
-(e.g. `gardenia-api`'s `QrBuilder`). The two command handlers and the two
-listener/consumer services build common audit-log fields, `await` an async
-MQTT publish/Kafka produce, and only then finish building and calling
-`.build()` — a shared singleton builder's mutable `with*()` state could be
-clobbered by a second concurrent invocation landing in that `await` gap. The
-org's own example (`CreateQrCommandHandler`) never awaits between the start
-of the fluent chain and `.build()`, so the singleton is safe there; this
-context's shape is different, so each call site does `new
-BridgeMessageLogBuilder()` instead.
+`BridgeMessageLogBuilder` is registered as a DI provider in `nodes.module.ts`
+(`DOMAIN_BUILDERS`), matching the org-standard pattern (e.g. `gardenia-api`'s
+`QrBuilder`) per code review. An earlier draft of this design deliberately
+kept it un-registered: the two command handlers build common audit-log
+fields onto a `builder` local, `await` an async MQTT publish/Kafka produce,
+and only *then* finish building — and since a DI-registered builder is a
+singleton shared by every `execute()` call, a second concurrent invocation
+landing in that `await` gap could clobber the first one's in-progress
+`with*()` state (the org's own example, `CreateQrCommandHandler`, never
+awaits between the start of its fluent chain and `.build()`, so the
+singleton is safe there without anyone having to think about it — this
+context's original shape wasn't). Rather than opt out of DI, the two
+handlers were restructured so each try/catch branch runs its *entire*
+`withId()`...`.build()` chain as one synchronous unit **after** the awaited
+call resolves (repeating the handful of common `.with*()` calls in both
+branches). A single synchronous chain can never be interleaved by another
+async callback in Node's single-threaded event loop, so the shared,
+DI-injected builder is safe regardless of how many messages are in flight —
+which matters here specifically because `MqttNodeListenerService` dispatches
+MQTT `'message'` events fire-and-forget (`void this.handleMessage(...)`), so
+concurrent `execute()` calls are a real, expected condition, not a
+theoretical one. See
+`forward-node-event-to-kafka.handler.spec.ts`'s "does not corrupt state when
+two commands share the same injected builder..." test for a regression test
+that exercises this directly.
 
 | File | Action | Description |
 |---|---|---|
@@ -270,8 +284,12 @@ export interface ITelemetryMessage extends IBridgeMessageEnvelope {
 }
 // heartbeat/command/command-ack interfaces follow the same pattern, VO per field
 
-// domain/interfaces/bridge-message-log.interface.ts — consumed by the aggregate constructor
+// domain/interfaces/bridge-message-log.interface.ts — consumed by the aggregate constructor.
+// Bundles id/createdAt/updatedAt alongside the domain fields (matching
+// gardenia-api's IQr — a single `props: IXxx` constructor param, not
+// separate id/createdAt/updatedAt positional args).
 export interface IBridgeMessageLog {
+  id: UuidValueObject;
   direction: BridgeMessageDirectionValueObject;
   type: BridgeMessageTypeValueObject;
   nodeId: NodeIdValueObject | null; // null when payload didn't parse far enough to extract it
@@ -281,12 +299,14 @@ export interface IBridgeMessageLog {
   outcome: BridgeMessageOutcomeValueObject;
   errorReason: ErrorReasonValueObject | null;
   processedAt: DateValueObject;
+  createdAt: DateValueObject;
+  updatedAt: DateValueObject;
 }
 
 // domain/aggregates/bridge-message-log.aggregate.ts
 export class BridgeMessageLogAggregate extends BaseAggregate {
-  // constructor(id: UuidValueObject, fields: IBridgeMessageLog, createdAt, updatedAt) — hydration only
-  record(): void; // emits BridgeMessageRecordedEvent — append-only, no update()/delete()
+  // constructor(props: IBridgeMessageLog) — hydration only
+  record(): void; // emits BridgeMessageRecordedEvent (metadata built here, matching QrAggregate.create()) — append-only, no update()/delete()
   toPrimitives(): IBridgeMessageLogPrimitives;
   // + getters for every field
 }

@@ -1,18 +1,9 @@
-import { BaseEvent } from '@sisques-labs/nestjs-kit';
+import { BaseEvent, IEventMetadata } from '@sisques-labs/nestjs-kit';
 
 import { IBridgeMessageLogEventData } from '@contexts/nodes/domain/events/interfaces/bridge-message-log-event-data.interface';
 
 export class BridgeMessageRecordedEvent extends BaseEvent<IBridgeMessageLogEventData> {
-  constructor(aggregateId: string, data: IBridgeMessageLogEventData) {
-    super(
-      {
-        aggregateRootId: aggregateId,
-        aggregateRootType: 'BridgeMessageLogAggregate',
-        entityId: aggregateId,
-        entityType: 'BridgeMessageLogAggregate',
-        eventType: 'BridgeMessageRecorded',
-      },
-      data,
-    );
+  constructor(metadata: IEventMetadata, data: IBridgeMessageLogEventData) {
+    super(metadata, data);
   }
 }

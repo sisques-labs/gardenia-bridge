@@ -27,6 +27,7 @@ export class ForwardCommandToNodeHandler
     private readonly mqttCommandPublisher: MqttCommandPublisherService,
     @Inject(BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY)
     private readonly bridgeMessageLogWriteRepository: IBridgeMessageLogWriteRepository,
+    private readonly bridgeMessageLogBuilder: BridgeMessageLogBuilder,
     eventBus: EventBus,
   ) {
     super(eventBus);
@@ -34,26 +35,29 @@ export class ForwardCommandToNodeHandler
 
   async execute(command: ForwardCommandToNodeCommand): Promise<void> {
     const { sourceTopic, rawPayload, envelope } = command;
-    const now = new Date();
-
-    const builder = new BridgeMessageLogBuilder()
-      .withId(UuidValueObject.generate().value)
-      .withCreatedAt(now)
-      .withUpdatedAt(now)
-      .withDirection(BridgeMessageDirectionEnum.OUTBOUND)
-      .withType(envelope.type.value)
-      .withNodeId(envelope.nodeId.value)
-      .withSourceTopic(sourceTopic.value)
-      .withRawPayload(rawPayload.value)
-      .withProcessedAt(now.toISOString());
 
     try {
       const destinationTopic = await this.mqttCommandPublisher.publish(
         envelope.nodeId.value,
         envelope,
       );
+      const now = new Date();
 
-      const aggregate = builder
+      // The whole chain runs synchronously (no `await` in between `withId()`
+      // and `build()`) so that sharing `bridgeMessageLogBuilder` — a DI
+      // singleton — across concurrent `execute()` calls (the Kafka consumer
+      // can process messages before earlier ones finish) can never
+      // interleave two in-flight builds.
+      const aggregate = this.bridgeMessageLogBuilder
+        .withId(UuidValueObject.generate().value)
+        .withCreatedAt(now)
+        .withUpdatedAt(now)
+        .withDirection(BridgeMessageDirectionEnum.OUTBOUND)
+        .withType(envelope.type.value)
+        .withNodeId(envelope.nodeId.value)
+        .withSourceTopic(sourceTopic.value)
+        .withRawPayload(rawPayload.value)
+        .withProcessedAt(now.toISOString())
         .withDestinationTopic(destinationTopic)
         .withOutcome(BridgeMessageOutcomeEnum.SUCCESS)
         .build();
@@ -68,8 +72,18 @@ export class ForwardCommandToNodeHandler
     } catch (error) {
       const errorReason =
         error instanceof Error ? error.message : String(error);
+      const now = new Date();
 
-      const aggregate = builder
+      const aggregate = this.bridgeMessageLogBuilder
+        .withId(UuidValueObject.generate().value)
+        .withCreatedAt(now)
+        .withUpdatedAt(now)
+        .withDirection(BridgeMessageDirectionEnum.OUTBOUND)
+        .withType(envelope.type.value)
+        .withNodeId(envelope.nodeId.value)
+        .withSourceTopic(sourceTopic.value)
+        .withRawPayload(rawPayload.value)
+        .withProcessedAt(now.toISOString())
         .withDestinationTopic(null)
         .withOutcome(BridgeMessageOutcomeEnum.ERROR)
         .withErrorReason(errorReason)

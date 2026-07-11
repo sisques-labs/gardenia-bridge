@@ -1,5 +1,6 @@
 import { EventBus } from '@nestjs/cqrs';
 
+import { BridgeMessageLogBuilder } from '@contexts/nodes/domain/builders/bridge-message-log.builder';
 import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 import { ICommandMessagePrimitives } from '@contexts/nodes/domain/primitives/command-message.primitives';
 import { IBridgeMessageLogWriteRepository } from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
@@ -46,6 +47,7 @@ describe('ForwardCommandToNodeHandler', () => {
     handler = new ForwardCommandToNodeHandler(
       publisher,
       auditRepository,
+      new BridgeMessageLogBuilder(),
       eventBus,
     );
   });
