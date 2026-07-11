@@ -1,5 +1,8 @@
 import { BridgeMessageTypeEnum } from '../../domain/enums/bridge-message-type.enum';
-import { ICommandMessage } from '../../domain/interfaces/command-message.interface';
+import {
+  buildCommandMessage,
+  commandMessageToPrimitives,
+} from '../../domain/factories/command-message.factory';
 import { MqttClientProvider } from './mqtt-client.provider';
 import { MqttCommandPublisherService } from './mqtt-command-publisher.service';
 
@@ -8,13 +11,15 @@ describe('MqttCommandPublisherService', () => {
   let mqttClientProvider: jest.Mocked<MqttClientProvider>;
   let publishMock: jest.Mock;
 
-  const envelope: ICommandMessage = {
+  const nodeId = '11111111-1111-4111-8111-111111111111';
+
+  const envelope = buildCommandMessage({
     type: BridgeMessageTypeEnum.COMMAND,
-    nodeId: 'node-1',
+    nodeId,
     timestamp: '2026-07-10T10:00:00Z',
-    commandId: 'cmd-1',
+    commandId: '22222222-2222-4222-8222-222222222222',
     action: 'open-valve',
-  };
+  });
 
   beforeEach(() => {
     publishMock = jest.fn();
@@ -24,15 +29,15 @@ describe('MqttCommandPublisherService', () => {
     service = new MqttCommandPublisherService(mqttClientProvider);
   });
 
-  it('publishes the command to nodes/{nodeId}/commands with QoS 1', async () => {
+  it('publishes the command to nodes/{nodeId}/commands with QoS 1, serialized as primitives', async () => {
     publishMock.mockImplementation((_topic, _payload, _opts, cb) => cb());
 
-    const topic = await service.publish('node-1', envelope);
+    const topic = await service.publish(nodeId, envelope);
 
-    expect(topic).toBe('nodes/node-1/commands');
+    expect(topic).toBe(`nodes/${nodeId}/commands`);
     expect(publishMock).toHaveBeenCalledWith(
-      'nodes/node-1/commands',
-      JSON.stringify(envelope),
+      `nodes/${nodeId}/commands`,
+      JSON.stringify(commandMessageToPrimitives(envelope)),
       { qos: 1 },
       expect.any(Function),
     );
@@ -42,7 +47,7 @@ describe('MqttCommandPublisherService', () => {
     const error = new Error('not connected');
     publishMock.mockImplementation((_topic, _payload, _opts, cb) => cb(error));
 
-    await expect(service.publish('node-1', envelope)).rejects.toThrow(
+    await expect(service.publish(nodeId, envelope)).rejects.toThrow(
       'not connected',
     );
   });

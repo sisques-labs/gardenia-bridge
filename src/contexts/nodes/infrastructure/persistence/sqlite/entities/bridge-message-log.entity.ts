@@ -31,4 +31,10 @@ export class BridgeMessageLogEntity {
 
   @Column({ name: 'processed_at', type: 'text' })
   processedAt!: string;
+
+  @Column({ name: 'created_at', type: 'text' })
+  createdAt!: string;
+
+  @Column({ name: 'updated_at', type: 'text' })
+  updatedAt!: string;
 }

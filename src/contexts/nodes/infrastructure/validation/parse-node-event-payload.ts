@@ -1,6 +1,6 @@
 import { BridgeMessageTypeEnum } from '../../domain/enums/bridge-message-type.enum';
 import { InvalidMessagePayloadException } from '../../domain/exceptions/invalid-message-payload.exception';
-import { NodeEventMessage } from '../../domain/interfaces/node-event-message.type';
+import { NodeEventMessagePrimitives } from '../../domain/primitives/node-event-message.primitives.type';
 import { commandAckMessageSchema } from './schemas/command-ack-message.schema';
 import { heartbeatMessageSchema } from './schemas/heartbeat-message.schema';
 import { telemetryMessageSchema } from './schemas/telemetry-message.schema';
@@ -32,10 +32,17 @@ export function extractNodeIdFromTopic(topic: string): string | null {
   return match ? match[1] : null;
 }
 
+/**
+ * Validates the raw MQTT payload against its Zod schema and returns
+ * PRIMITIVES — not the VO-typed domain object. Wrapping primitives into
+ * value objects happens at the command boundary
+ * (ForwardNodeEventToKafkaCommand's constructor), matching this org's
+ * convention of primitives-in, VO-typed-fields-out for CQRS commands.
+ */
 export function parseNodeEventPayload(
   topic: string,
   rawPayload: string,
-): NodeEventMessage {
+): NodeEventMessagePrimitives {
   const type = resolveNodeEventType(topic);
   if (!type) {
     throw new InvalidMessagePayloadException(
@@ -66,5 +73,5 @@ export function parseNodeEventPayload(
     );
   }
 
-  return result.data as NodeEventMessage;
+  return result.data;
 }

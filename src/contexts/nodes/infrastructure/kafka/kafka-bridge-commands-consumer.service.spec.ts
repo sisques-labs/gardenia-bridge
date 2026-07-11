@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { CommandBus } from '@nestjs/cqrs';
+import { CommandBus, EventBus } from '@nestjs/cqrs';
 
 import { ForwardCommandToNodeCommand } from '../../application/commands/forward-command-to-node/forward-command-to-node.command';
 import { IBridgeMessageLogWriteRepository } from '../../domain/repositories/write/bridge-message-log-write.repository';
@@ -32,7 +32,10 @@ describe('KafkaBridgeCommandsConsumerService', () => {
   let service: KafkaBridgeCommandsConsumerService;
   let configService: jest.Mocked<ConfigService>;
   let commandBus: jest.Mocked<CommandBus>;
+  let eventBus: jest.Mocked<EventBus>;
   let auditRepository: jest.Mocked<IBridgeMessageLogWriteRepository>;
+
+  const nodeId = '11111111-1111-4111-8111-111111111111';
 
   const baseConfig = {
     enabled: true,
@@ -54,12 +57,16 @@ describe('KafkaBridgeCommandsConsumerService', () => {
       getOrThrow: jest.fn().mockReturnValue(baseConfig),
     } as unknown as jest.Mocked<ConfigService>;
     commandBus = { execute: jest.fn() } as unknown as jest.Mocked<CommandBus>;
+    eventBus = {
+      publishAll: jest.fn(),
+    } as unknown as jest.Mocked<EventBus>;
     auditRepository = {
-      record: jest.fn(),
+      save: jest.fn(),
     } as unknown as jest.Mocked<IBridgeMessageLogWriteRepository>;
     service = new KafkaBridgeCommandsConsumerService(
       configService,
       commandBus,
+      eventBus,
       auditRepository,
     );
   });
@@ -89,9 +96,9 @@ describe('KafkaBridgeCommandsConsumerService', () => {
 
     const payload = JSON.stringify({
       type: 'command',
-      nodeId: 'node-1',
+      nodeId,
       timestamp: '2026-07-10T10:00:00Z',
-      commandId: 'cmd-1',
+      commandId: '22222222-2222-4222-8222-222222222222',
       action: 'open-valve',
     });
 
@@ -103,7 +110,7 @@ describe('KafkaBridgeCommandsConsumerService', () => {
     expect(commandBus.execute).toHaveBeenCalledWith(
       expect.any(ForwardCommandToNodeCommand),
     );
-    expect(auditRepository.record).not.toHaveBeenCalled();
+    expect(auditRepository.save).not.toHaveBeenCalled();
   });
 
   it('records an audit error entry and does not dispatch for an invalid message', async () => {
@@ -115,7 +122,10 @@ describe('KafkaBridgeCommandsConsumerService', () => {
     });
 
     expect(commandBus.execute).not.toHaveBeenCalled();
-    expect(auditRepository.record).toHaveBeenCalledWith(
+    expect(auditRepository.save).toHaveBeenCalledTimes(1);
+
+    const aggregate = auditRepository.save.mock.calls[0][0];
+    expect(aggregate.toPrimitives()).toEqual(
       expect.objectContaining({
         direction: 'outbound',
         type: 'unknown',

@@ -2,9 +2,8 @@
 
 Stateless, best-effort message relay between an MQTT broker (where physical
 nodes/sensors publish and subscribe) and Kafka (where the rest of the
-platform lives). No device registry, no aggregates, no business
-GraphQL/REST/MCP transport. Full rationale in
-`openspec/changes/kafka-mqtt-bridge/{proposal,design}.md`.
+platform lives). No device registry, no business GraphQL/REST/MCP transport.
+Full rationale in `openspec/changes/kafka-mqtt-bridge/{proposal,design}.md`.
 
 ## Message types
 
@@ -16,10 +15,14 @@ GraphQL/REST/MCP transport. Full rationale in
 | `command` | Kafka → node | `nodes/{nodeId}/commands` | `${KAFKA_TOPIC_PREFIX}.commands` |
 
 Every message shares an envelope (`type`, `nodeId`, `timestamp`) plus
-type-specific fields — see `domain/interfaces/`. Payloads are validated with
-Zod (`infrastructure/validation/schemas/`) at the boundary before anything is
-forwarded; a message that fails validation is never relayed and is recorded
-in the audit log with an error outcome instead.
+type-specific fields — see `domain/interfaces/` for the VO-typed domain shape
+and `domain/primitives/` for the parallel primitives-only shape used at the
+validation boundary. Payloads are validated with Zod
+(`infrastructure/validation/schemas/`) into primitives; the primitives are
+wrapped into Value Objects one layer in, at the CQRS Command's constructor
+(`domain/factories/*.factory.ts` does the wrapping). A message that fails
+validation is never relayed and is recorded in the audit log with an error
+outcome instead.
 
 Kafka messages are keyed by `nodeId` (per-node ordering, no global ordering
 guarantee). Delivery is best-effort: MQTT QoS 0/1, no retries, no
@@ -48,25 +51,28 @@ Every message processed (either direction, success or failure) gets exactly
 one row in `bridge_message_log`, a local SQLite table on its own TypeORM
 connection (`sqlite-audit`, `better-sqlite3` driver, path configured via
 `BRIDGE_AUDIT_DB_PATH`) — independent of the main Postgres connection, so the
-bridge can run at the edge without depending on it. Write-only in this
-version: no read API, no retention policy (see design.md Open Questions).
+bridge can run at the edge without depending on it. Modeled as a full
+`BridgeMessageLogAggregate` (`domain/aggregates/`): `record()` emits a
+`BridgeMessageRecordedEvent`, published through the usual
+`BaseCommandHandler.publishEvents()` → `EventBus` pipeline, and also
+auto-forwarded to `${KAFKA_TOPIC_PREFIX}.nodes` by the kit's `MessagingModule`
+outbox (see `aggregate-module.map.generated.ts`) — free external
+observability into the audit trail, on top of the write itself. Write-only in
+this version: no read API, no retention policy (see design.md Open
+Questions).
 
 ## Deviations from the standard architecture-skill pattern
 
 This is the first bounded context in `gardenia-bridge`, so it sets
-precedent — but it deliberately does **not** follow the full DDD+CQRS
-ceremony this template's `architecture` skill describes for typical
+precedent — but it deliberately does **not** follow every piece of the
+DDD+CQRS ceremony this template's `architecture` skill describes for typical
 persisted, transport-facing contexts:
 
-- **No aggregates, no value objects.** Messages are transient, not
-  persisted domain entities with a lifecycle; validation happens via Zod at
-  the infrastructure boundary instead of VO constructors. The audit log is a
-  dumb append-only record, not a rich aggregate.
-- **Commands exist, handlers don't extend `BaseCommandHandler`.**
-  `BaseCommandHandler<TCommand, TAggregate>` (from `@sisques-labs/nestjs-kit`)
-  is built around publishing domain events from an aggregate — irrelevant
-  here, since there's no aggregate and no domain events. Handlers implement
-  `ICommandHandler` directly.
+- **No aggregate for the relayed messages themselves** (telemetry, heartbeat,
+  command, command-ack) — they're transient, re-validated on every hop, never
+  persisted. They're still fully VO-typed though (`domain/value-objects/`);
+  VOs and aggregates are independent decisions in this org's convention. The
+  audit log (`BridgeMessageLog`) *is* a full aggregate — see above.
 - **No `transport/` subtree.** Entry points are an MQTT subscription
   callback and a Kafka consumer — both infrastructure, not the
   GraphQL/REST/MCP transport this template usually means by that layer.

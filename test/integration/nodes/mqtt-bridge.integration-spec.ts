@@ -8,7 +8,7 @@ import { connect, MqttClient } from 'mqtt';
 import { mqttConfig } from '../../../src/core/config/mqtt.config';
 import { ForwardNodeEventToKafkaHandler } from '../../../src/contexts/nodes/application/commands/forward-node-event-to-kafka/forward-node-event-to-kafka.handler';
 import { BridgeMessageTypeEnum } from '../../../src/contexts/nodes/domain/enums/bridge-message-type.enum';
-import { NodeEventMessage } from '../../../src/contexts/nodes/domain/interfaces/node-event-message.type';
+import { buildCommandMessage } from '../../../src/contexts/nodes/domain/factories/command-message.factory';
 import {
   BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY,
   IBridgeMessageLogWriteRepository,
@@ -26,6 +26,12 @@ interface AedesBroker {
   handle: (duplex: unknown) => void;
   close: (callback?: () => void) => void;
 }
+
+const NODE_ID_1 = '11111111-1111-4111-8111-111111111111';
+const NODE_ID_2 = '22222222-2222-4222-8222-222222222222';
+const NODE_ID_3 = '33333333-3333-4333-8333-333333333333';
+const NODE_ID_4 = '44444444-4444-4444-8444-444444444444';
+const COMMAND_ID = '55555555-5555-4555-8555-555555555555';
 
 /**
  * Real MQTT round-trip against an embedded aedes broker. No Kafka broker is
@@ -55,8 +61,8 @@ describe('MQTT bridge — aedes integration', () => {
 
     auditEntries = [];
     const fakeAuditRepository: IBridgeMessageLogWriteRepository = {
-      record: jest.fn(async (entry) => {
-        auditEntries.push(entry);
+      save: jest.fn(async (aggregate) => {
+        auditEntries.push(aggregate.toPrimitives());
       }),
     };
 
@@ -106,16 +112,16 @@ describe('MQTT bridge — aedes integration', () => {
   });
 
   it('relays a valid telemetry message from MQTT to the Kafka producer', async () => {
-    const envelope: NodeEventMessage = {
+    const envelope = {
       type: BridgeMessageTypeEnum.TELEMETRY,
-      nodeId: 'node-1',
+      nodeId: NODE_ID_1,
       timestamp: new Date().toISOString(),
       sensorType: 'soil-moisture',
       value: 42.5,
     };
 
     testClient.publish(
-      'sensors/node-1/soil-moisture/telemetry',
+      `sensors/${NODE_ID_1}/soil-moisture/telemetry`,
       JSON.stringify(envelope),
     );
 
@@ -123,18 +129,18 @@ describe('MQTT bridge — aedes integration', () => {
 
     expect(fakeProducer.send).toHaveBeenCalledWith(
       expect.objectContaining({
-        nodeId: 'node-1',
-        sensorType: 'soil-moisture',
+        nodeId: expect.objectContaining({ value: NODE_ID_1 }),
+        sensorType: expect.objectContaining({ value: 'soil-moisture' }),
       }),
     );
   });
 
   it('relays a valid heartbeat message from MQTT to the Kafka producer', async () => {
     testClient.publish(
-      'nodes/node-2/heartbeat',
+      `nodes/${NODE_ID_2}/heartbeat`,
       JSON.stringify({
         type: 'heartbeat',
-        nodeId: 'node-2',
+        nodeId: NODE_ID_2,
         timestamp: new Date().toISOString(),
       }),
     );
@@ -142,12 +148,15 @@ describe('MQTT bridge — aedes integration', () => {
     await waitFor(() => fakeProducer.send.mock.calls.length > 0);
 
     expect(fakeProducer.send).toHaveBeenCalledWith(
-      expect.objectContaining({ nodeId: 'node-2', type: 'heartbeat' }),
+      expect.objectContaining({
+        nodeId: expect.objectContaining({ value: NODE_ID_2 }),
+        type: expect.objectContaining({ value: 'heartbeat' }),
+      }),
     );
   });
 
   it('does not forward a malformed payload and records an audit error', async () => {
-    testClient.publish('nodes/node-3/heartbeat', 'not-json');
+    testClient.publish(`nodes/${NODE_ID_3}/heartbeat`, 'not-json');
 
     await waitFor(() => auditEntries.length > 0);
 
@@ -162,7 +171,7 @@ describe('MQTT bridge — aedes integration', () => {
     const publisher = moduleRef.get(MqttCommandPublisherService);
 
     const received = new Promise<string>((resolve) => {
-      testClient.subscribe('nodes/node-4/commands', () => {
+      testClient.subscribe(`nodes/${NODE_ID_4}/commands`, () => {
         testClient.once('message', (_topic, payload) =>
           resolve(payload.toString()),
         );
@@ -171,19 +180,19 @@ describe('MQTT bridge — aedes integration', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    const envelope = {
+    const envelope = buildCommandMessage({
       type: BridgeMessageTypeEnum.COMMAND,
-      nodeId: 'node-4',
+      nodeId: NODE_ID_4,
       timestamp: new Date().toISOString(),
-      commandId: 'cmd-1',
+      commandId: COMMAND_ID,
       action: 'open-valve',
-    } as const;
+    });
 
-    await publisher.publish('node-4', envelope);
+    await publisher.publish(NODE_ID_4, envelope);
 
     const payload = await received;
     expect(JSON.parse(payload)).toMatchObject({
-      commandId: 'cmd-1',
+      commandId: COMMAND_ID,
       action: 'open-valve',
     });
   });

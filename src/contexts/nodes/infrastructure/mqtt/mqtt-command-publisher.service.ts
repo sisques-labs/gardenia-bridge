@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { commandMessageToPrimitives } from '../../domain/factories/command-message.factory';
 import { ICommandMessage } from '../../domain/interfaces/command-message.interface';
 import { MqttClientProvider } from './mqtt-client.provider';
 
@@ -11,9 +12,10 @@ export class MqttCommandPublisherService {
 
   publish(nodeId: string, envelope: ICommandMessage): Promise<string> {
     const topic = `nodes/${nodeId}/commands`;
-    const payload = JSON.stringify(envelope);
+    const payload = JSON.stringify(commandMessageToPrimitives(envelope));
+    const commandId = envelope.commandId.value;
 
-    this.logger.log(`Publishing command ${envelope.commandId} to "${topic}"`);
+    this.logger.log(`Publishing command ${commandId} to "${topic}"`);
 
     return new Promise<string>((resolve, reject) => {
       this.mqttClientProvider
@@ -21,14 +23,12 @@ export class MqttCommandPublisherService {
         .publish(topic, payload, { qos: 1 }, (error) => {
           if (error) {
             this.logger.error(
-              `Failed to publish command ${envelope.commandId} to "${topic}": ${error.message}`,
+              `Failed to publish command ${commandId} to "${topic}": ${error.message}`,
             );
             reject(error);
             return;
           }
-          this.logger.log(
-            `Published command ${envelope.commandId} to "${topic}"`,
-          );
+          this.logger.log(`Published command ${commandId} to "${topic}"`);
           resolve(topic);
         });
     });

@@ -1,6 +1,11 @@
 import { Inject, Logger } from '@nestjs/common';
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
+import { BaseCommandHandler, UuidValueObject } from '@sisques-labs/nestjs-kit';
 
+import { BridgeMessageLogAggregate } from '../../../domain/aggregates/bridge-message-log.aggregate';
+import { BridgeMessageLogBuilder } from '../../../domain/builders/bridge-message-log.builder';
+import { BridgeMessageDirectionEnum } from '../../../domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '../../../domain/enums/bridge-message-outcome.enum';
 import {
   BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY,
   IBridgeMessageLogWriteRepository,
@@ -9,60 +14,73 @@ import { MqttCommandPublisherService } from '../../../infrastructure/mqtt/mqtt-c
 import { ForwardCommandToNodeCommand } from './forward-command-to-node.command';
 
 @CommandHandler(ForwardCommandToNodeCommand)
-export class ForwardCommandToNodeHandler implements ICommandHandler<
-  ForwardCommandToNodeCommand,
-  void
-> {
+export class ForwardCommandToNodeHandler
+  extends BaseCommandHandler<
+    ForwardCommandToNodeCommand,
+    BridgeMessageLogAggregate
+  >
+  implements ICommandHandler<ForwardCommandToNodeCommand, void>
+{
   private readonly logger = new Logger(ForwardCommandToNodeHandler.name);
 
   constructor(
     private readonly mqttCommandPublisher: MqttCommandPublisherService,
     @Inject(BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY)
     private readonly bridgeMessageLogWriteRepository: IBridgeMessageLogWriteRepository,
-  ) {}
+    eventBus: EventBus,
+  ) {
+    super(eventBus);
+  }
 
   async execute(command: ForwardCommandToNodeCommand): Promise<void> {
     const { sourceTopic, rawPayload, envelope } = command;
+    const now = new Date();
+
+    const builder = new BridgeMessageLogBuilder()
+      .withId(UuidValueObject.generate().value)
+      .withCreatedAt(now)
+      .withUpdatedAt(now)
+      .withDirection(BridgeMessageDirectionEnum.OUTBOUND)
+      .withType(envelope.type.value)
+      .withNodeId(envelope.nodeId.value)
+      .withSourceTopic(sourceTopic.value)
+      .withRawPayload(rawPayload.value)
+      .withProcessedAt(now.toISOString());
 
     try {
       const destinationTopic = await this.mqttCommandPublisher.publish(
-        envelope.nodeId,
+        envelope.nodeId.value,
         envelope,
       );
 
-      await this.bridgeMessageLogWriteRepository.record({
-        direction: 'outbound',
-        type: envelope.type,
-        nodeId: envelope.nodeId,
-        sourceTopic,
-        destinationTopic,
-        rawPayload,
-        outcome: 'success',
-        errorReason: null,
-        processedAt: new Date().toISOString(),
-      });
+      const aggregate = builder
+        .withDestinationTopic(destinationTopic)
+        .withOutcome(BridgeMessageOutcomeEnum.SUCCESS)
+        .build();
+      aggregate.record();
+
+      await this.bridgeMessageLogWriteRepository.save(aggregate);
+      await this.publishEvents(aggregate);
 
       this.logger.log(
-        `Forwarded command ${envelope.commandId} for node ${envelope.nodeId} from ${sourceTopic} to ${destinationTopic}`,
+        `Forwarded command ${envelope.commandId.value} for node ${envelope.nodeId.value} from ${sourceTopic.value} to ${destinationTopic}`,
       );
     } catch (error) {
       const errorReason =
         error instanceof Error ? error.message : String(error);
 
-      await this.bridgeMessageLogWriteRepository.record({
-        direction: 'outbound',
-        type: envelope.type,
-        nodeId: envelope.nodeId,
-        sourceTopic,
-        destinationTopic: null,
-        rawPayload,
-        outcome: 'error',
-        errorReason,
-        processedAt: new Date().toISOString(),
-      });
+      const aggregate = builder
+        .withDestinationTopic(null)
+        .withOutcome(BridgeMessageOutcomeEnum.ERROR)
+        .withErrorReason(errorReason)
+        .build();
+      aggregate.record();
+
+      await this.bridgeMessageLogWriteRepository.save(aggregate);
+      await this.publishEvents(aggregate);
 
       this.logger.error(
-        `Failed to forward command ${envelope.commandId} for node ${envelope.nodeId} from ${sourceTopic}: ${errorReason}`,
+        `Failed to forward command ${envelope.commandId.value} for node ${envelope.nodeId.value} from ${sourceTopic.value}: ${errorReason}`,
       );
     }
   }

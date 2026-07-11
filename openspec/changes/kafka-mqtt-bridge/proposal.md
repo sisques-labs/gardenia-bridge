@@ -28,14 +28,19 @@ Because the bridge is meant to run **at the edge**, close to the nodes and
 possibly without reliable network access to the platform's central Postgres,
 every message the bridge processes (in either direction) is also appended to a
 **local SQLite audit log** — a flat, queryable record of what was relayed and
-whether it succeeded. This is bookkeeping, not a domain concept: no updates,
-no relations, no business invariants.
+whether it succeeded. It's append-only (no updates, no relations) but it *is*
+modeled as a full domain aggregate (`BridgeMessageLogAggregate`), per this
+org's convention that every persisted write goes through
+`BaseAggregate`/`Builder`/domain events, not a plain entity — see `design.md`
+for the (reversed, post-review) rationale.
 
 This is the **precedent-setting first context** for this service (per
 `AGENTS.md`/`architecture` skill: "the first context added defines the pattern
-every subsequent one follows"). It deliberately does **not** use the full
-DDD+CQRS+Hexagonal ceremony this template ships for typical CRUD contexts
-(aggregates, GraphQL `findByCriteria`, REST/MCP transport) — see `design.md`
+every subsequent one follows"). It deliberately does **not** use every piece
+of DDD+CQRS+Hexagonal ceremony this template ships for typical CRUD contexts
+(GraphQL `findByCriteria`, REST/MCP transport, query handlers — there's no
+query surface at all), but Value Objects and the audit-log's `BaseAggregate`
+do apply, same as any other context — see `design.md`
 for exactly what applies and what doesn't, and why.
 
 ## Scope
@@ -48,12 +53,17 @@ for exactly what applies and what doesn't, and why.
   (broker host/port/protocol, credentials, TLS on/off, client id) — no
   hardcoded broker, mirroring how `KAFKA_*` / `DATABASE_*` are already
   configured in this template.
-- A dedicated Kafka producer/consumer for the bridge's own topics
+- A dedicated Kafka producer/consumer for the bridge's own relay topics
   (`gardenia-bridge.telemetry` / `.heartbeat` / `.command-acks` /
   `.commands`), built directly on
   `kafkajs` (already a dependency) — **not** `@sisques-labs/nestjs-kit`'s
-  `MessagingModule`, which is purpose-built for forwarding domain events from
-  CQRS aggregates and doesn't apply here (this context has none).
+  `MessagingModule`. `MessagingModule` is purpose-built for forwarding a CQRS
+  aggregate's own domain events to `{prefix}.{module}` topics (and, since the
+  audit log became a real aggregate, it *does* now pick up
+  `BridgeMessageRecordedEvent` and forward it to `gardenia-bridge.nodes`
+  automatically) — but it doesn't give producer/consumer control over
+  arbitrary topic names, keys, or offsets, which the raw node-message relay
+  needs.
 - Four message types with a shared envelope
   (`type`, `nodeId`, `timestamp`, ...payload), validated at the boundary:
   `telemetry`, `heartbeat`, `command-ack` (node → Kafka), `command`
@@ -124,26 +134,34 @@ for exactly what applies and what doesn't, and why.
 
 ## Approach
 
-- **No aggregate, no `BaseAggregate`/`Builder`/domain events for messages.**
-  Node → Kafka / Kafka → node messages are transient, not persisted domain
-  entities with invariants or a lifecycle — modeling them as an `Aggregate`
-  would be ceremony without payoff. They're represented as plain
-  `domain/interfaces/*.interface.ts` types (pure TS, no framework/library
-  imports), validated at the infrastructure boundary via Zod schemas before
-  they ever reach application logic.
-- **CQRS commands survive, aggregates don't.** Two commands —
+- **No aggregate for the relayed messages themselves.** Node → Kafka / Kafka →
+  node messages are transient — they exist for one function call, are never
+  persisted, and are re-validated on every hop, so they aren't modeled as an
+  `Aggregate`. Every field is still wrapped in a Value Object though (see
+  next point) — VOs and aggregates are separate concerns, and this org wraps
+  primitives in VOs regardless of whether an aggregate sits behind them.
+  Messages are represented as VO-typed `domain/interfaces/*.interface.ts`
+  types, built from a parallel primitives-only shape
+  (`domain/primitives/*.primitives.ts`) via `domain/factories/*.factory.ts`.
+  Zod still validates the raw payload into primitives at the infrastructure
+  boundary before anything reaches application logic; the VO wrapping happens
+  one layer in, at the CQRS Command's constructor.
+- **CQRS commands, primitives in / VOs out.** Two commands —
   `ForwardNodeEventToKafka` (triggered by the MQTT listener) and
-  `ForwardCommandToNode` (triggered by the Kafka consumer) — keep the
-  orchestration testable and consistent with the rest of the org's handler
-  conventions (logging, `jest.Mocked<T>` unit tests), even though there's no
-  aggregate underneath. Handlers call the Kafka/MQTT infrastructure clients
-  and the audit-log write repository directly.
-- **`BridgeMessageLog` is a dumb record, not a rich entity.** Append-only,
-  never updated, no business invariants beyond "these fields are present" —
-  so it skips the `Aggregate`/`Builder`/domain-event ceremony too, and is
-  written via a plain write repository (still a hexagonal port —
-  `domain/repositories/write/bridge-message-log-write.repository.ts` — just
-  without the aggregate on the other end of it).
+  `ForwardCommandToNode` (triggered by the Kafka consumer) — take a
+  primitives-typed `Input` and wrap every field into its Value Object inside
+  the constructor, matching this org's `DeleteQrCommand`/`CreateQrCommand`
+  pick/omit convention. Handlers extend `BaseCommandHandler`, call the
+  Kafka/MQTT infrastructure clients, and build+save+publish the
+  `BridgeMessageLogAggregate` for every outcome (success or failure).
+- **`BridgeMessageLog` is a full aggregate, not a dumb record.** Append-only
+  (there's no `update()`/`delete()`, only `record()`), but every field is
+  VO-typed and `record()` emits a `BridgeMessageRecordedEvent` through the
+  standard `BaseAggregate`/`Builder`/`EventBus.publishAll` pipeline, written
+  via the same hexagonal port as before
+  (`domain/repositories/write/bridge-message-log-write.repository.ts`, now
+  `save(aggregate)` instead of `record(entry)`). This reverses the original
+  draft of this proposal (see `design.md`'s "Note — reversal..." for why).
 - **One Kafka topic per message type, from the start.** `telemetry`,
   `heartbeat`, and `command-ack` each get their own topic rather than sharing
   one discriminated-by-`type` topic. A consumer that only cares about

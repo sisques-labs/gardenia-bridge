@@ -10,6 +10,7 @@ import { Kafka, Producer, SASLOptions } from 'kafkajs';
 import { IBridgeKafkaConfig } from '@core/config/kafka.config';
 
 import { BridgeMessageTypeEnum } from '../../domain/enums/bridge-message-type.enum';
+import { nodeEventMessageToPrimitives } from '../../domain/factories/node-event-message.factory';
 import { NodeEventMessage } from '../../domain/interfaces/node-event-message.type';
 
 @Injectable()
@@ -73,7 +74,8 @@ export class KafkaBridgeProducerService
   }
 
   async send(envelope: NodeEventMessage): Promise<string> {
-    const topic = this.resolveTopic(envelope.type);
+    const type = envelope.type.value as BridgeMessageTypeEnum;
+    const topic = this.resolveTopic(type);
 
     if (!this.producer) {
       throw new Error(
@@ -83,7 +85,12 @@ export class KafkaBridgeProducerService
 
     await this.producer.send({
       topic,
-      messages: [{ key: envelope.nodeId, value: JSON.stringify(envelope) }],
+      messages: [
+        {
+          key: envelope.nodeId.value,
+          value: JSON.stringify(nodeEventMessageToPrimitives(envelope)),
+        },
+      ],
     });
 
     return topic;

@@ -7,6 +7,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { kafkaConfig } from '../../../src/core/config/kafka.config';
 import { ForwardCommandToNodeHandler } from '../../../src/contexts/nodes/application/commands/forward-command-to-node/forward-command-to-node.handler';
 import { BridgeMessageTypeEnum } from '../../../src/contexts/nodes/domain/enums/bridge-message-type.enum';
+import { buildTelemetryMessage } from '../../../src/contexts/nodes/domain/factories/node-event-message.factory';
 import {
   BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY,
   IBridgeMessageLogWriteRepository,
@@ -28,6 +29,10 @@ import { MqttCommandPublisherService } from '../../../src/contexts/nodes/infrast
  * authored in (no reachable Docker daemon there); run it anywhere Docker is
  * reliably available to get real coverage.
  */
+const NODE_ID_1 = '11111111-1111-4111-8111-111111111111';
+const NODE_ID_2 = '22222222-2222-4222-8222-222222222222';
+const COMMAND_ID = '33333333-3333-4333-8333-333333333333';
+
 describe('Kafka bridge — testcontainers integration', () => {
   let container: StartedKafkaContainer | null = null;
   let moduleRef: TestingModule | null = null;
@@ -64,12 +69,12 @@ describe('Kafka bridge — testcontainers integration', () => {
 
       auditEntries = [];
       const fakeAuditRepository: IBridgeMessageLogWriteRepository = {
-        record: jest.fn(async (entry) => {
-          auditEntries.push(entry);
+        save: jest.fn(async (aggregate) => {
+          auditEntries.push(aggregate.toPrimitives());
         }),
       };
       fakePublisher = {
-        publish: jest.fn().mockResolvedValue('nodes/node-1/commands'),
+        publish: jest.fn().mockResolvedValue(`nodes/${NODE_ID_2}/commands`),
       };
 
       moduleRef = await Test.createTestingModule({
@@ -121,13 +126,13 @@ describe('Kafka bridge — testcontainers integration', () => {
 
     const producer = moduleRef!.get(KafkaBridgeProducerService);
 
-    const envelope = {
+    const envelope = buildTelemetryMessage({
       type: BridgeMessageTypeEnum.TELEMETRY,
-      nodeId: 'node-1',
+      nodeId: NODE_ID_1,
       timestamp: new Date().toISOString(),
       sensorType: 'soil-moisture',
       value: 42.5,
-    } as const;
+    });
 
     await producer.send(envelope);
 
@@ -147,7 +152,7 @@ describe('Kafka bridge — testcontainers integration', () => {
     });
     await consumer.disconnect();
 
-    expect(JSON.parse(received)).toMatchObject({ nodeId: 'node-1' });
+    expect(JSON.parse(received)).toMatchObject({ nodeId: NODE_ID_1 });
   }, 30_000);
 
   it('relays a command from Kafka to the MQTT publisher', async () => {
@@ -160,22 +165,25 @@ describe('Kafka bridge — testcontainers integration', () => {
 
     const envelope = {
       type: BridgeMessageTypeEnum.COMMAND,
-      nodeId: 'node-2',
+      nodeId: NODE_ID_2,
       timestamp: new Date().toISOString(),
-      commandId: 'cmd-1',
+      commandId: COMMAND_ID,
       action: 'open-valve',
     };
     await producer.send({
       topic: 'bridge-it.commands',
-      messages: [{ key: 'node-2', value: JSON.stringify(envelope) }],
+      messages: [{ key: NODE_ID_2, value: JSON.stringify(envelope) }],
     });
     await producer.disconnect();
 
     await waitFor(() => fakePublisher.publish.mock.calls.length > 0);
 
     expect(fakePublisher.publish).toHaveBeenCalledWith(
-      'node-2',
-      expect.objectContaining({ commandId: 'cmd-1', action: 'open-valve' }),
+      NODE_ID_2,
+      expect.objectContaining({
+        commandId: expect.objectContaining({ value: COMMAND_ID }),
+        action: expect.objectContaining({ value: 'open-valve' }),
+      }),
     );
   }, 30_000);
 });

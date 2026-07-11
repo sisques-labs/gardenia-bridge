@@ -4,9 +4,12 @@
 
 `nodes` is a message-relay context: two inbound entry points (an MQTT
 subscriber, a Kafka consumer), two outbound sinks (a Kafka producer, an MQTT
-publisher), and a side-effect audit write on every message. There is no
-persisted business entity to protect with aggregates/invariants/events — the
-"domain" here is the *shape* of a message, not a lifecycle.
+publisher), and a side-effect audit write on every message. The relayed
+messages themselves are transient (validated once per hop, never persisted),
+but the audit write **is** a persisted business record — every field is
+wrapped in a Value Object and the write is a full `BaseAggregate` (see
+"Architecture Decisions" below; this reverses an earlier draft of this
+design, see the note at the end of that section).
 
 ```
 MQTT broker                                          Kafka cluster
@@ -48,12 +51,12 @@ explicit about the deviations matters more than usual.
 
 | Standard pattern element | Applies here? | Why |
 |---|---|---|
-| `domain/interfaces/`, pure TS, zero framework imports | Yes | Message envelope shapes are plain interfaces |
-| `domain/enums/` | Yes | `BridgeMessageTypeEnum` |
+| `domain/interfaces/`, pure TS, zero framework imports | Yes | Message envelope shapes are VO-typed plain interfaces (e.g. `ITelemetryMessage`); `domain/primitives/` holds the parallel primitives-only shapes used at the infra/Zod boundary |
+| `domain/enums/` | Yes | `BridgeMessageTypeEnum`, `BridgeMessageDirectionEnum`, `BridgeMessageOutcomeEnum` |
 | `domain/exceptions/` extending `BaseException` | Yes | `InvalidMessagePayloadException` (validation failures) |
-| `domain/aggregates/` + `BaseAggregate` + `Builder` + domain events | **No** | No persisted entity with a lifecycle or invariants to protect. Messages are transient; the audit log is a dumb record, not an aggregate (see below) |
-| `domain/value-objects/` wrapping every field | **No** | No aggregate ⇒ nothing to wrap. Validation lives in Zod schemas at the infra boundary instead of VO constructors |
-| `application/commands/{name}/{name}.command.ts` + `.handler.ts` | Yes | `ForwardNodeEventToKafka`, `ForwardCommandToNode` — orchestration without an aggregate underneath |
+| `domain/aggregates/` + `BaseAggregate` + `Builder` + domain events | **Yes, for the audit log** | `BridgeMessageLogAggregate` is a full aggregate (`record()` emits `BridgeMessageRecordedEvent`, published via `EventBus`/`publishEvents`) — see below. The relayed *messages* (telemetry/heartbeat/command/command-ack) are not aggregates; they're VO-typed value shapes with no identity or lifecycle |
+| `domain/value-objects/` wrapping every field | Yes, org-wide convention | Every domain-facing primitive field — on message envelopes and on the audit log — is wrapped in a Value Object (`NodeIdValueObject`, `TopicValueObject`, `SensorValueValueObject`, etc.), matching the pattern used throughout `gardenia-api` |
+| `application/commands/{name}/{name}.command.ts` + `.handler.ts` | Yes | `ForwardNodeEventToKafka`, `ForwardCommandToNode`. Command `Input` types are primitives (pick/omit convention); the Command constructor wraps them into VOs. Handlers extend `BaseCommandHandler`, build the `BridgeMessageLogAggregate` via `BridgeMessageLogBuilder`, and call `publishEvents()` |
 | `application/queries/` | **No** | Nothing to query in this change (audit log is write-only; see Out of Scope) |
 | `application/services/` (assert-exists, etc.) | **No** | No entity existence to assert; the equivalent concern (payload validity) is a Zod parse, not an assert-service |
 | `infrastructure/persistence/typeorm/` | Yes, but a **second, SQLite `DataSource`** | See "Persistence" below |
@@ -68,8 +71,8 @@ explicit about the deviations matters more than usual.
 
 | Decision | Choice | Alternatives rejected | Rationale |
 |---|---|---|---|
-| Domain modeling of messages | Plain `domain/interfaces/*.interface.ts`, validated via Zod at the infra boundary | Full `Aggregate`/VO ceremony per field | Messages aren't persisted, have no lifecycle, and are re-validated on every hop — VOs would wrap values that live for one function call |
-| Audit log modeling | Plain entity + write repository, no `Aggregate`/`Builder`/domain events | Full aggregate with `create()` emitting a `BridgeMessageLogged` event | It's an append-only side effect, not a business concept with invariants; there's nothing downstream that needs to react to "a log row was written" |
+| Domain modeling of messages | Zod validates the raw payload into a **primitives** shape at the infra boundary (`domain/primitives/*.primitives.ts`); the Command constructor wraps those primitives into a VO-typed domain interface (`domain/interfaces/*.interface.ts`) via a `domain/factories/*.factory.ts` builder function | (a) Full ceremony with VOs constructed directly in the Zod parser (rejected: mixes infra validation with domain construction); (b) plain-primitives-only interfaces, no VOs at all (the original v1 decision — reversed, see note below) | Matches this org's standing convention: Commands take a primitives `Input`, the constructor does the VO wrapping ("pick and omit of primitives"), same as `DeleteQrCommand`/`CreateQrCommand` in `gardenia-api`. Zod stays the first-line boundary parser; VO construction is a domain concern, not a validation concern |
+| Audit log modeling | Full `BridgeMessageLogAggregate` (`BaseAggregate` + `BridgeMessageLogBuilder` + `BridgeMessageRecordedEvent`), all fields VO-typed | Plain entity + write repository, no `Aggregate`/`Builder`/domain events (the original v1 decision — reversed, see note below) | Consistent with the org-wide rule that every persisted write goes through an aggregate, even an append-only one — `record()` emits `BridgeMessageRecordedEvent`, which `MessagingModule`'s `AGGREGATE_MODULE_MAP` (see `pnpm gen:topics`) picks up automatically and forwards to Kafka (`gardenia-bridge.nodes`), giving external observability into the audit trail for free, which the plain-entity design didn't have |
 | Kafka client for bridge topics | `kafkajs` directly, new thin producer/consumer wrappers in `infrastructure/kafka/` | `@sisques-labs/nestjs-kit`'s `MessagingModule` | That module's `aggregateModuleMap` is built for forwarding domain events emitted by CQRS aggregates in *this* service to `{prefix}.{module}` topics — `nodes` emits no domain events and needs producer/consumer control (topic name, key, offsets) `MessagingModule` doesn't expose |
 | Kafka topic ownership/prefix | Bridge's own prefix, `gardenia-bridge.*` (not `gardenia-api.*`) | Publish under `gardenia-api`'s prefix | The bridge is the IoT integration boundary; it shouldn't need to know or agree on another service's topic prefix to exist. Any consumer subscribes from outside this repo |
 | Inbound topic shape | **One topic per message type from the start**: `gardenia-bridge.telemetry`, `gardenia-bridge.heartbeat`, `gardenia-bridge.command-acks` | A single `gardenia-bridge.events` topic carrying all three, discriminated by `type` | User decision: separate topics from day one. A consumer that only wants heartbeats (e.g. a liveness dashboard) subscribes narrowly instead of pulling telemetry volume and filtering; each topic has one fixed schema instead of a discriminated union, so consumer-side deserialization doesn't need a `switch` on `type` |
@@ -82,6 +85,21 @@ explicit about the deviations matters more than usual.
 | Audit persistence engine | SQLite via a second TypeORM `DataSource` (`better-sqlite3` driver) | (a) Raw `better-sqlite3` with hand-written SQL, no ORM (b) Reuse the existing Postgres connection instead of SQLite | (a) rejected: the template's entity/mapper/migration tooling (`pnpm migration:generate`, entity conventions, repository pattern) already exists for TypeORM — hand-rolled SQL would be a second, inconsistent persistence story for one table. (b) rejected: explicit requirement — the bridge is meant to run at the edge, near the nodes, without depending on network reachability to the central Postgres |
 | Audit log query surface | None (write-only in v1) | REST/GraphQL/MCP read endpoints | Not requested; keeps this context transport-free as decided. The SQLite file is directly inspectable (`sqlite3 file.db "select * from bridge_message_log"`) for debugging without shipping an API |
 | Command/action payload validation | Envelope + top-level field validation only (`commandId`, `action`, `params` as an opaque object); no per-`action` schema | Registry of per-`action` Zod schemas | The bridge doesn't know what actions exist — that's a `gardenia-api`/firmware-side concern. Validating deeper here would couple the bridge to business semantics it's explicitly not supposed to own |
+
+> **Note — reversal of the original "no VOs / no aggregate" decision.** The
+> first draft of this design (see git history) deliberately kept messages and
+> the audit log as plain interfaces/entities with zero Value Objects,
+> reasoning that transient messages and an append-only log had no invariants
+> worth protecting. Code review on the implementation PR (#16) pushed back:
+> this org's convention is VOs on every domain-facing field and a full
+> aggregate on every persisted write, without exception for "it's just a
+> log". The codebase was rewritten to match — see the two rows above and the
+> `domain/value-objects/`, `domain/aggregates/`, `domain/builders/`,
+> `domain/factories/` entries in "File Changes" below. The original
+> reasoning (messages are transient, re-validated per hop) still explains
+> *why the relayed message types themselves aren't aggregates* — that part
+> of the decision holds. What changed is: transient values still get typed
+> as VOs, and the audit write gets a real aggregate.
 
 ## Data Flow
 
@@ -120,18 +138,47 @@ All new under `src/contexts/nodes/` unless noted. Tree:
 
 ```
 domain/
-  enums/bridge-message-type.enum.ts        # TELEMETRY | HEARTBEAT | COMMAND | COMMAND_ACK
-  interfaces/bridge-message-envelope.interface.ts   # shared { type, nodeId, timestamp }
-  interfaces/telemetry-message.interface.ts         # + sensorType, value, unit?
-  interfaces/heartbeat-message.interface.ts         # + status?, uptimeSeconds?
-  interfaces/command-message.interface.ts           # + commandId, action, params
-  interfaces/command-ack-message.interface.ts       # + commandId, success, message?
-  interfaces/bridge-message-log-entry.interface.ts  # audit row shape
+  enums/bridge-message-type.enum.ts        # TELEMETRY | HEARTBEAT | COMMAND | COMMAND_ACK | UNKNOWN
+  enums/bridge-message-direction.enum.ts   # INBOUND | OUTBOUND
+  enums/bridge-message-outcome.enum.ts     # SUCCESS | ERROR
+  value-objects/{name}/{name}.value-object.ts  # one per domain-facing primitive field —
+                                                # NodeIdValueObject, CommandIdValueObject,
+                                                # TopicValueObject, RawPayloadValueObject,
+                                                # SensorTypeValueObject, SensorValueValueObject,
+                                                # SensorUnitValueObject, UptimeSecondsValueObject,
+                                                # NodeStatusValueObject, CommandActionValueObject,
+                                                # CommandParamsValueObject, CommandSuccessValueObject,
+                                                # AckMessageValueObject, ErrorReasonValueObject,
+                                                # BridgeMessageTypeValueObject (Enum VO),
+                                                # BridgeMessageDirectionValueObject (Enum VO),
+                                                # BridgeMessageOutcomeValueObject (Enum VO)
+  primitives/bridge-message-envelope.primitives.ts   # infra-boundary shape: { type, nodeId, timestamp } as raw primitives
+  primitives/telemetry-message.primitives.ts
+  primitives/heartbeat-message.primitives.ts
+  primitives/command-message.primitives.ts
+  primitives/command-ack-message.primitives.ts
+  primitives/node-event-message.primitives.type.ts   # union of the above 3 (excludes command)
+  primitives/bridge-message-log.primitives.ts        # extends BasePrimitives
+  interfaces/bridge-message-envelope.interface.ts   # shared { type, nodeId, timestamp }, VO-typed
+  interfaces/telemetry-message.interface.ts         # + sensorType, value, unit? — VO-typed
+  interfaces/heartbeat-message.interface.ts         # + status?, uptimeSeconds? — VO-typed
+  interfaces/command-message.interface.ts           # + commandId, action, params — VO-typed
+  interfaces/command-ack-message.interface.ts       # + commandId, success, message? — VO-typed
+  interfaces/node-event-message.type.ts             # union of telemetry|heartbeat|command-ack (VO-typed)
+  interfaces/bridge-message-log.interface.ts        # VO-typed shape consumed by the aggregate constructor
+  factories/node-event-message.factory.ts   # buildTelemetryMessage/buildHeartbeatMessage/buildCommandAckMessage/
+                                             # buildNodeEventMessage (primitives → VO) + nodeEventMessageToPrimitives (VO → primitives)
+  factories/command-message.factory.ts      # buildCommandMessage + commandMessageToPrimitives
+  aggregates/bridge-message-log.aggregate.ts   # BridgeMessageLogAggregate extends BaseAggregate; record() emits BridgeMessageRecordedEvent
+  builders/bridge-message-log.builder.ts       # BridgeMessageLogBuilder extends BaseBuilder — NOT DI-registered (see below)
+  view-models/bridge-message-log.view-model.ts # satisfies IBuilder<Aggregate, ViewModel>; not exposed via any transport
+  events/bridge-message-recorded/bridge-message-recorded.event.ts
+  events/interfaces/bridge-message-log-event-data.interface.ts
   exceptions/invalid-message-payload.exception.ts   # 400-equivalent, thrown on Zod failure
-  repositories/write/bridge-message-log-write.repository.ts  # port + DI token
+  repositories/write/bridge-message-log-write.repository.ts  # port + DI token — save(aggregate), not record(entry)
 application/
-  commands/forward-node-event-to-kafka/forward-node-event-to-kafka.command.ts
-  commands/forward-node-event-to-kafka/forward-node-event-to-kafka.handler.ts
+  commands/forward-node-event-to-kafka/forward-node-event-to-kafka.command.ts  # Input = primitives; constructor wraps into VOs (pick/omit convention)
+  commands/forward-node-event-to-kafka/forward-node-event-to-kafka.handler.ts  # extends BaseCommandHandler; builds+saves+publishes the aggregate
   commands/forward-command-to-node/forward-command-to-node.command.ts
   commands/forward-command-to-node/forward-command-to-node.handler.ts
 infrastructure/
@@ -152,6 +199,18 @@ infrastructure/
 nodes.module.ts
 README.md
 ```
+
+`BridgeMessageLogBuilder` is deliberately **not** registered as a DI provider
+in `nodes.module.ts`, unlike the org-standard `DOMAIN_BUILDERS` pattern
+(e.g. `gardenia-api`'s `QrBuilder`). The two command handlers and the two
+listener/consumer services build common audit-log fields, `await` an async
+MQTT publish/Kafka produce, and only then finish building and calling
+`.build()` — a shared singleton builder's mutable `with*()` state could be
+clobbered by a second concurrent invocation landing in that `await` gap. The
+org's own example (`CreateQrCommandHandler`) never awaits between the start
+of the fluent chain and `.build()`, so the singleton is safe there; this
+context's shape is different, so each call site does `new
+BridgeMessageLogBuilder()` instead.
 
 | File | Action | Description |
 |---|---|---|
@@ -176,59 +235,60 @@ export enum BridgeMessageTypeEnum {
   HEARTBEAT = 'heartbeat',
   COMMAND = 'command',
   COMMAND_ACK = 'command-ack',
+  UNKNOWN = 'unknown', // audit-log-only: payload failed validation before a type could be resolved
 }
 
-// domain/interfaces/bridge-message-envelope.interface.ts
-export interface IBridgeMessageEnvelope {
+// domain/primitives/bridge-message-envelope.primitives.ts — the Zod/infra-boundary shape
+export interface IBridgeMessageEnvelopePrimitives {
   type: BridgeMessageTypeEnum;
   nodeId: string;
   timestamp: string; // ISO 8601
 }
 
-// domain/interfaces/telemetry-message.interface.ts
-export interface ITelemetryMessage extends IBridgeMessageEnvelope {
-  type: BridgeMessageTypeEnum.TELEMETRY;
+// domain/primitives/telemetry-message.primitives.ts
+export interface ITelemetryMessagePrimitives extends IBridgeMessageEnvelopePrimitives {
   sensorType: string;
   value: number;
   unit?: string;
 }
+// heartbeat/command/command-ack primitives follow the same pattern (status?/uptimeSeconds?,
+// commandId+action+params?, commandId+success+message? respectively)
 
-// domain/interfaces/heartbeat-message.interface.ts
-export interface IHeartbeatMessage extends IBridgeMessageEnvelope {
-  type: BridgeMessageTypeEnum.HEARTBEAT;
-  status?: string;
-  uptimeSeconds?: number;
+// domain/interfaces/bridge-message-envelope.interface.ts — the VO-typed domain shape,
+// built from primitives via domain/factories/*.factory.ts
+export interface IBridgeMessageEnvelope {
+  type: BridgeMessageTypeValueObject;
+  nodeId: NodeIdValueObject;
+  timestamp: DateValueObject;
 }
 
-// domain/interfaces/command-message.interface.ts
-export interface ICommandMessage extends IBridgeMessageEnvelope {
-  type: BridgeMessageTypeEnum.COMMAND;
-  commandId: string;
-  action: string;
-  params?: Record<string, unknown>;
+// domain/interfaces/telemetry-message.interface.ts
+export interface ITelemetryMessage extends IBridgeMessageEnvelope {
+  sensorType: SensorTypeValueObject;
+  value: SensorValueValueObject;
+  unit?: SensorUnitValueObject;
+}
+// heartbeat/command/command-ack interfaces follow the same pattern, VO per field
+
+// domain/interfaces/bridge-message-log.interface.ts — consumed by the aggregate constructor
+export interface IBridgeMessageLog {
+  direction: BridgeMessageDirectionValueObject;
+  type: BridgeMessageTypeValueObject;
+  nodeId: NodeIdValueObject | null; // null when payload didn't parse far enough to extract it
+  sourceTopic: TopicValueObject;    // MQTT topic or Kafka topic the message arrived on
+  destinationTopic: TopicValueObject | null; // null when forwarding never happened (validation failure)
+  rawPayload: RawPayloadValueObject;         // as received, unmodified
+  outcome: BridgeMessageOutcomeValueObject;
+  errorReason: ErrorReasonValueObject | null;
+  processedAt: DateValueObject;
 }
 
-// domain/interfaces/command-ack-message.interface.ts
-export interface ICommandAckMessage extends IBridgeMessageEnvelope {
-  type: BridgeMessageTypeEnum.COMMAND_ACK;
-  commandId: string;
-  success: boolean;
-  message?: string;
-}
-
-// domain/interfaces/bridge-message-log-entry.interface.ts
-export type BridgeMessageDirection = 'inbound' | 'outbound';
-export interface IBridgeMessageLogEntry {
-  id: string; // uuid, generated at write time
-  direction: BridgeMessageDirection;
-  type: BridgeMessageTypeEnum | 'unknown'; // 'unknown' when validation failed before type resolution
-  nodeId: string | null; // null when payload didn't parse far enough to extract it
-  sourceTopic: string;   // MQTT topic or Kafka topic the message arrived on
-  destinationTopic: string | null; // null when forwarding never happened (validation failure)
-  rawPayload: string;    // as received, unmodified
-  outcome: 'success' | 'error';
-  errorReason: string | null;
-  processedAt: string; // ISO 8601
+// domain/aggregates/bridge-message-log.aggregate.ts
+export class BridgeMessageLogAggregate extends BaseAggregate {
+  // constructor(id: UuidValueObject, fields: IBridgeMessageLog, createdAt, updatedAt) — hydration only
+  record(): void; // emits BridgeMessageRecordedEvent — append-only, no update()/delete()
+  toPrimitives(): IBridgeMessageLogPrimitives;
+  // + getters for every field
 }
 
 // domain/repositories/write/bridge-message-log-write.repository.ts
@@ -236,7 +296,19 @@ export const BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY = Symbol(
   'BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY',
 );
 export interface IBridgeMessageLogWriteRepository {
-  record(entry: IBridgeMessageLogEntry): Promise<void>;
+  save(aggregate: BridgeMessageLogAggregate): Promise<void>;
+}
+
+// application/commands/forward-node-event-to-kafka/forward-node-event-to-kafka.command.ts
+export interface ForwardNodeEventToKafkaCommandInput {
+  sourceTopic: string;
+  rawPayload: string;
+  envelope: NodeEventMessagePrimitives; // primitives in
+}
+export class ForwardNodeEventToKafkaCommand {
+  public readonly sourceTopic: TopicValueObject;
+  public readonly rawPayload: RawPayloadValueObject;
+  public readonly envelope: NodeEventMessage; // VO-typed out — wrapped in the constructor
 }
 ```
 
@@ -244,14 +316,16 @@ export interface IBridgeMessageLogWriteRepository {
 (text, `inbound`|`outbound`), `type` (text), `node_id` (text, nullable),
 `source_topic` (text), `destination_topic` (text, nullable), `raw_payload`
 (text), `outcome` (text, `success`|`error`), `error_reason` (text, nullable),
-`processed_at` (text, ISO timestamp). No indices beyond the primary key in v1
-— write-only, no query surface yet.
+`processed_at` (text, ISO timestamp), `created_at` (text, ISO timestamp),
+`updated_at` (text, ISO timestamp — the latter two added when the entry
+became an aggregate, since `BaseAggregate`/`BasePrimitives` require both).
+No indices beyond the primary key in v1 — write-only, no query surface yet.
 
 ## Testing Strategy
 
 | Layer | What | Approach |
 |---|---|---|
-| Unit | Each Zod schema (valid payload accepted; missing/wrong-type field rejected per type); `ForwardNodeEventToKafkaHandler` (calls producer with correct topic/key, records audit success; producer throw → audit error, no throw escapes); `ForwardCommandToNodeHandler` (same, MQTT side); `MqttNodeListenerService` topic→type resolution (all four topic patterns, plus an unrecognized topic is ignored+logged, not crashed on); `BridgeMessageLogTypeormRepository.record` (mocked TypeORM repository) | Jest, `jest.Mocked<T>`, no `@nestjs/testing` |
+| Unit | Each Zod schema (valid payload accepted; missing/wrong-type field rejected per type); every Value Object (valid/invalid/boundary values); `BridgeMessageLogAggregate` (hydration emits no events, `record()` emits exactly one `BridgeMessageRecordedEvent` with the right payload, `toPrimitives()`); `BridgeMessageLogBuilder` (`build()`/`buildViewModel()`, required-field validation via `FieldIsRequiredException`); both `*.factory.ts` (primitives→VO and the VO→primitives round trip); `ForwardNodeEventToKafkaHandler` (calls producer with the VO envelope, saves+publishes a success-outcome aggregate; producer throw → error-outcome aggregate, no throw escapes); `ForwardCommandToNodeHandler` (same, MQTT side); `MqttNodeListenerService`/`KafkaBridgeCommandsConsumerService` topic→type resolution and the nested try/catch around building the audit aggregate on a parse failure (a malformed topic can yield a non-UUID `nodeId`, which must not crash the listener); `BridgeMessageLogTypeormRepository.save` (mocked TypeORM repository, built via the builder) | Jest, `jest.Mocked<T>`, no `@nestjs/testing` |
 | Integration | MQTT round-trip against an embedded broker (`aedes`): publish on each of the 4 topic patterns, assert the bridge produces/consumes correctly; Kafka round-trip against a real broker (testcontainers Kafka module, mirroring the existing `@testcontainers/postgresql` pattern): produce a `command` on `gardenia-bridge.commands`, assert an MQTT publish is observed by a test subscriber; `bridge_message_log` write/read against a real temp-file SQLite DB (round-trip: written row matches what was recorded, including malformed-payload rows) | `test/integration/nodes/*.integration-spec.ts`; these integration tests are the closest thing this context has to E2E, since there's no HTTP surface |
 | Static | `nodes-no-cross-context-import.spec.ts`: scan `src/contexts/nodes/**` for imports from any other `@contexts/*` context (there are none yet, but the rule holds for future contexts too) | Jest source scan, same pattern as other contexts use |
 

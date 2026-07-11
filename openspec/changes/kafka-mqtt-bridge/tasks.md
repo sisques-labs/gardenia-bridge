@@ -118,3 +118,26 @@ Chain strategy: pending
 - [x] 8.9 Integration — `bridge-message-log.integration-spec.ts`: write rows (success and error outcomes) against a real temp-file SQLite DB; read them back and assert field-for-field equality. Executed and passing.
 - [x] 8.10 Static — `nodes-no-cross-context-import.spec.ts`: scan `src/contexts/nodes/**` for imports from any other `@contexts/<other>/` bounded context
 - [x] 8.11 Modify `package.json` — add `aedes` (dev) and a Kafka testcontainers module (dev), matching the existing `@testcontainers/postgresql` pattern
+
+---
+
+## Phase 9: Post-review rework — Value Objects + full aggregate for the audit log
+
+Triggered by code review on PR #16 (JSisques), which rejected Phase 1–8's
+"no VOs / no aggregate" decision. See `design.md`'s "Note — reversal..." for
+the rationale. Scope: apply consistently across the whole `nodes` context,
+not just the commented lines.
+
+- [x] 9.1 Create 17 Value Objects under `domain/value-objects/{name}/` — `NodeIdValueObject`, `CommandIdValueObject` (both `UuidValueObject`); `BridgeMessageTypeValueObject`, `BridgeMessageDirectionValueObject`, `BridgeMessageOutcomeValueObject` (`EnumValueObject`); `TopicValueObject`, `RawPayloadValueObject`, `ErrorReasonValueObject`, `SensorTypeValueObject`, `SensorUnitValueObject`, `NodeStatusValueObject`, `CommandActionValueObject`, `AckMessageValueObject` (`StringValueObject`); `SensorValueValueObject`, `UptimeSecondsValueObject` (`NumberValueObject`); `CommandSuccessValueObject` (`BooleanValueObject`); `CommandParamsValueObject` (`JsonValueObject`)
+- [x] 9.2 Add `domain/enums/bridge-message-direction.enum.ts`, `domain/enums/bridge-message-outcome.enum.ts`; add `UNKNOWN` to `BridgeMessageTypeEnum`
+- [x] 9.3 Add `domain/primitives/*.primitives.ts` (parallel primitives-only shapes for every message type + the audit log) and rewrite `domain/interfaces/*.interface.ts` to be VO-typed; delete the old `bridge-message-direction.type.ts` and `bridge-message-log-entry.interface.ts`
+- [x] 9.4 Create `domain/factories/node-event-message.factory.ts` and `domain/factories/command-message.factory.ts` — primitives→VO builders + the VO→primitives reverse conversion (needed before every `JSON.stringify` on the wire, since most kit VO base classes have no `toJSON()`)
+- [x] 9.5 Create the `BridgeMessageLogAggregate` (`domain/aggregates/`), `BridgeMessageLogBuilder` (`domain/builders/`, not DI-registered — see design.md), `BridgeMessageLogViewModel` (`domain/view-models/`, unused by any transport but required by `IBuilder`), `BridgeMessageRecordedEvent` + its event-data interface (`domain/events/`)
+- [x] 9.6 Change `IBridgeMessageLogWriteRepository` from `record(entry)` to `save(aggregate)`; rewrite `BridgeMessageLogTypeormRepository` to call `aggregate.toPrimitives()`; add `created_at`/`updated_at` columns to the entity + migration (required by `BasePrimitives`)
+- [x] 9.7 Rewrite both Commands to take a primitives `Input` and wrap into VOs in the constructor (pick/omit convention); rewrite both Handlers to extend `BaseCommandHandler`, build the aggregate via the Builder, `save()` + `publishEvents()` for both the success and error outcome
+- [x] 9.8 Update `MqttNodeListenerService`/`KafkaBridgeCommandsConsumerService` to inject `EventBus`, build the audit aggregate inline on a parse failure, and guard that build in its own nested try/catch (a malformed topic can yield a non-UUID `nodeId`, which must not crash the listener)
+- [x] 9.9 Fix `MqttCommandPublisherService`/`KafkaBridgeProducerService` to serialize `nodeEventMessageToPrimitives(envelope)`/`commandMessageToPrimitives(envelope)` before `JSON.stringify`, not the VO envelope directly
+- [x] 9.10 Rewrite every affected unit test (7 files) and every integration test (3 files) for the new primitives/VO/Aggregate/EventBus shapes; add new unit specs for all 17 VOs, the aggregate, the builder, and both factories
+- [x] 9.11 Run `pnpm gen:topics` — `BridgeMessageLogAggregate` is now a real aggregate, so `aggregate-module.map.generated.ts` needed regenerating (CI's `pnpm gen:topics:check` gate would otherwise fail)
+- [x] 9.12 Re-verify: `tsc --noEmit`, `nest build`, `eslint --fix`, full unit suite (213 tests / 47 suites), full `nodes` integration suite (9 tests / 3 suites) — all green
+- [x] 9.13 Update `design.md`/`proposal.md`/`state.yaml` to document the reversal

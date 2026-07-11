@@ -18,6 +18,8 @@ export class CreateBridgeMessageLog1783705993043 implements MigrationInterface {
           { name: 'outcome', type: 'text' },
           { name: 'error_reason', type: 'text', isNullable: true },
           { name: 'processed_at', type: 'text' },
+          { name: 'created_at', type: 'text' },
+          { name: 'updated_at', type: 'text' },
         ],
       }),
     );

@@ -2,8 +2,13 @@ import { existsSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
+import { UuidValueObject } from '@sisques-labs/nestjs-kit';
 import { DataSource } from 'typeorm';
 
+import { BridgeMessageLogBuilder } from '../../../src/contexts/nodes/domain/builders/bridge-message-log.builder';
+import { BridgeMessageDirectionEnum } from '../../../src/contexts/nodes/domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '../../../src/contexts/nodes/domain/enums/bridge-message-outcome.enum';
+import { BridgeMessageTypeEnum } from '../../../src/contexts/nodes/domain/enums/bridge-message-type.enum';
 import { BridgeMessageLogEntity } from '../../../src/contexts/nodes/infrastructure/persistence/sqlite/entities/bridge-message-log.entity';
 import { BridgeMessageLogTypeormRepository } from '../../../src/contexts/nodes/infrastructure/persistence/sqlite/repositories/bridge-message-log-typeorm.repository';
 
@@ -11,6 +16,9 @@ describe('BridgeMessageLog — SQLite integration', () => {
   let dataSource: DataSource;
   let repository: BridgeMessageLogTypeormRepository;
   let tmpDir: string;
+
+  const successNodeId = '11111111-1111-4111-8111-111111111111';
+  const generatedNodeId = '22222222-2222-4222-8222-222222222222';
 
   beforeAll(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'bridge-audit-'));
@@ -38,29 +46,34 @@ describe('BridgeMessageLog — SQLite integration', () => {
   });
 
   it('persists a successful entry and reads it back field-for-field', async () => {
-    await repository.record({
-      id: 'entry-success',
-      direction: 'inbound',
-      type: 'telemetry' as never,
-      nodeId: 'node-1',
-      sourceTopic: 'sensors/node-1/soil-moisture/telemetry',
-      destinationTopic: 'gardenia-bridge.telemetry',
-      rawPayload: '{"value":42.5}',
-      outcome: 'success',
-      errorReason: null,
-      processedAt: '2026-07-10T10:00:00.000Z',
-    });
+    const now = new Date('2026-07-10T10:00:00.000Z');
+    const aggregate = new BridgeMessageLogBuilder()
+      .withId('33333333-3333-4333-8333-333333333333')
+      .withCreatedAt(now)
+      .withUpdatedAt(now)
+      .withDirection(BridgeMessageDirectionEnum.INBOUND)
+      .withType(BridgeMessageTypeEnum.TELEMETRY)
+      .withNodeId(successNodeId)
+      .withSourceTopic(`sensors/${successNodeId}/soil-moisture/telemetry`)
+      .withDestinationTopic('gardenia-bridge.telemetry')
+      .withRawPayload('{"value":42.5}')
+      .withOutcome(BridgeMessageOutcomeEnum.SUCCESS)
+      .withProcessedAt('2026-07-10T10:00:00.000Z')
+      .build();
+    aggregate.record();
+
+    await repository.save(aggregate);
 
     const row = await dataSource
       .getRepository(BridgeMessageLogEntity)
-      .findOneBy({ id: 'entry-success' });
+      .findOneBy({ id: '33333333-3333-4333-8333-333333333333' });
 
     expect(row).toMatchObject({
-      id: 'entry-success',
+      id: '33333333-3333-4333-8333-333333333333',
       direction: 'inbound',
       type: 'telemetry',
-      nodeId: 'node-1',
-      sourceTopic: 'sensors/node-1/soil-moisture/telemetry',
+      nodeId: successNodeId,
+      sourceTopic: `sensors/${successNodeId}/soil-moisture/telemetry`,
       destinationTopic: 'gardenia-bridge.telemetry',
       rawPayload: '{"value":42.5}',
       outcome: 'success',
@@ -70,25 +83,31 @@ describe('BridgeMessageLog — SQLite integration', () => {
   });
 
   it('persists a malformed-payload error entry with null nodeId/destinationTopic', async () => {
-    await repository.record({
-      id: 'entry-error',
-      direction: 'inbound',
-      type: 'unknown',
-      nodeId: null,
-      sourceTopic: 'unknown/topic',
-      destinationTopic: null,
-      rawPayload: 'not-json',
-      outcome: 'error',
-      errorReason: 'Unrecognized MQTT topic pattern: "unknown/topic"',
-      processedAt: '2026-07-10T10:00:01.000Z',
-    });
+    const now = new Date('2026-07-10T10:00:01.000Z');
+    const aggregate = new BridgeMessageLogBuilder()
+      .withId('44444444-4444-4444-8444-444444444444')
+      .withCreatedAt(now)
+      .withUpdatedAt(now)
+      .withDirection(BridgeMessageDirectionEnum.INBOUND)
+      .withType(BridgeMessageTypeEnum.UNKNOWN)
+      .withNodeId(null)
+      .withSourceTopic('unknown/topic')
+      .withDestinationTopic(null)
+      .withRawPayload('not-json')
+      .withOutcome(BridgeMessageOutcomeEnum.ERROR)
+      .withErrorReason('Unrecognized MQTT topic pattern: "unknown/topic"')
+      .withProcessedAt('2026-07-10T10:00:01.000Z')
+      .build();
+    aggregate.record();
+
+    await repository.save(aggregate);
 
     const row = await dataSource
       .getRepository(BridgeMessageLogEntity)
-      .findOneBy({ id: 'entry-error' });
+      .findOneBy({ id: '44444444-4444-4444-8444-444444444444' });
 
     expect(row).toMatchObject({
-      id: 'entry-error',
+      id: '44444444-4444-4444-8444-444444444444',
       type: 'unknown',
       nodeId: null,
       destinationTopic: null,
@@ -97,22 +116,28 @@ describe('BridgeMessageLog — SQLite integration', () => {
     });
   });
 
-  it('generates a uuid when no id is provided', async () => {
-    await repository.record({
-      direction: 'outbound',
-      type: 'command' as never,
-      nodeId: 'node-2',
-      sourceTopic: 'gardenia-bridge.commands',
-      destinationTopic: 'nodes/node-2/commands',
-      rawPayload: '{"commandId":"cmd-1"}',
-      outcome: 'success',
-      errorReason: null,
-      processedAt: '2026-07-10T10:00:02.000Z',
-    });
+  it('persists an aggregate built with a freshly generated uuid', async () => {
+    const now = new Date('2026-07-10T10:00:02.000Z');
+    const aggregate = new BridgeMessageLogBuilder()
+      .withId(UuidValueObject.generate().value)
+      .withCreatedAt(now)
+      .withUpdatedAt(now)
+      .withDirection(BridgeMessageDirectionEnum.OUTBOUND)
+      .withType(BridgeMessageTypeEnum.COMMAND)
+      .withNodeId(generatedNodeId)
+      .withSourceTopic('gardenia-bridge.commands')
+      .withDestinationTopic(`nodes/${generatedNodeId}/commands`)
+      .withRawPayload('{"commandId":"cmd-1"}')
+      .withOutcome(BridgeMessageOutcomeEnum.SUCCESS)
+      .withProcessedAt('2026-07-10T10:00:02.000Z')
+      .build();
+    aggregate.record();
+
+    await repository.save(aggregate);
 
     const rows = await dataSource
       .getRepository(BridgeMessageLogEntity)
-      .findBy({ nodeId: 'node-2' });
+      .findBy({ nodeId: generatedNodeId });
 
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toMatch(

@@ -1,11 +1,16 @@
 import { InvalidMessagePayloadException } from '../../domain/exceptions/invalid-message-payload.exception';
-import { ICommandMessage } from '../../domain/interfaces/command-message.interface';
+import { ICommandMessagePrimitives } from '../../domain/primitives/command-message.primitives';
 import { commandMessageSchema } from './schemas/command-message.schema';
 
+/**
+ * Validates the raw Kafka payload against its Zod schema and returns
+ * PRIMITIVES — wrapping into value objects happens at the command boundary
+ * (ForwardCommandToNodeCommand's constructor).
+ */
 export function parseCommandPayload(
   sourceTopic: string,
   rawPayload: string,
-): ICommandMessage {
+): ICommandMessagePrimitives {
   let json: unknown;
   try {
     json = JSON.parse(rawPayload);

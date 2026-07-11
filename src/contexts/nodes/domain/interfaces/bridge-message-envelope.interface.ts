@@ -1,7 +1,10 @@
-import { BridgeMessageTypeEnum } from '../enums/bridge-message-type.enum';
+import { DateValueObject } from '@sisques-labs/nestjs-kit';
+
+import { BridgeMessageTypeValueObject } from '../value-objects/bridge-message-type/bridge-message-type.value-object';
+import { NodeIdValueObject } from '../value-objects/node-id/node-id.value-object';
 
 export interface IBridgeMessageEnvelope {
-  type: BridgeMessageTypeEnum;
-  nodeId: string;
-  timestamp: string;
+  type: BridgeMessageTypeValueObject;
+  nodeId: NodeIdValueObject;
+  timestamp: DateValueObject;
 }

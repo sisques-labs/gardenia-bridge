@@ -1,10 +1,8 @@
-import { randomUUID } from 'node:crypto';
-
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { IBridgeMessageLogEntry } from '../../../../domain/interfaces/bridge-message-log-entry.interface';
+import { BridgeMessageLogAggregate } from '../../../../domain/aggregates/bridge-message-log.aggregate';
 import { IBridgeMessageLogWriteRepository } from '../../../../domain/repositories/write/bridge-message-log-write.repository';
 import { BridgeMessageLogEntity } from '../entities/bridge-message-log.entity';
 
@@ -17,19 +15,23 @@ export class BridgeMessageLogTypeormRepository implements IBridgeMessageLogWrite
     private readonly repository: Repository<BridgeMessageLogEntity>,
   ) {}
 
-  async record(entry: IBridgeMessageLogEntry): Promise<void> {
+  async save(aggregate: BridgeMessageLogAggregate): Promise<void> {
+    const primitives = aggregate.toPrimitives();
+
     try {
       await this.repository.insert({
-        id: entry.id ?? randomUUID(),
-        direction: entry.direction,
-        type: entry.type,
-        nodeId: entry.nodeId,
-        sourceTopic: entry.sourceTopic,
-        destinationTopic: entry.destinationTopic,
-        rawPayload: entry.rawPayload,
-        outcome: entry.outcome,
-        errorReason: entry.errorReason,
-        processedAt: entry.processedAt,
+        id: primitives.id,
+        direction: primitives.direction,
+        type: primitives.type,
+        nodeId: primitives.nodeId,
+        sourceTopic: primitives.sourceTopic,
+        destinationTopic: primitives.destinationTopic,
+        rawPayload: primitives.rawPayload,
+        outcome: primitives.outcome,
+        errorReason: primitives.errorReason,
+        processedAt: primitives.processedAt,
+        createdAt: primitives.createdAt.toISOString(),
+        updatedAt: primitives.updatedAt.toISOString(),
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);

@@ -1,7 +1,12 @@
 import { ConfigService } from '@nestjs/config';
 
 import { BridgeMessageTypeEnum } from '../../domain/enums/bridge-message-type.enum';
-import { ITelemetryMessage } from '../../domain/interfaces/telemetry-message.interface';
+import {
+  buildCommandAckMessage,
+  buildHeartbeatMessage,
+  buildTelemetryMessage,
+  nodeEventMessageToPrimitives,
+} from '../../domain/factories/node-event-message.factory';
 import { KafkaBridgeProducerService } from './kafka-bridge-producer.service';
 
 const mockProducer = {
@@ -33,13 +38,15 @@ describe('KafkaBridgeProducerService', () => {
     bridgeCommandsTopic: 'gardenia-bridge.commands',
   };
 
-  const telemetry: ITelemetryMessage = {
+  const nodeId = '11111111-1111-4111-8111-111111111111';
+
+  const telemetry = buildTelemetryMessage({
     type: BridgeMessageTypeEnum.TELEMETRY,
-    nodeId: 'node-1',
+    nodeId,
     timestamp: '2026-07-10T10:00:00Z',
     sensorType: 'soil-moisture',
     value: 42.5,
-  };
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -65,7 +72,7 @@ describe('KafkaBridgeProducerService', () => {
     expect(service.isConnected()).toBe(true);
   });
 
-  it('sends telemetry to the telemetry topic keyed by nodeId', async () => {
+  it('sends telemetry to the telemetry topic keyed by nodeId, serialized as primitives', async () => {
     await service.onModuleInit();
 
     const topic = await service.send(telemetry);
@@ -73,17 +80,27 @@ describe('KafkaBridgeProducerService', () => {
     expect(topic).toBe('gardenia-bridge.telemetry');
     expect(mockProducer.send).toHaveBeenCalledWith({
       topic: 'gardenia-bridge.telemetry',
-      messages: [{ key: 'node-1', value: JSON.stringify(telemetry) }],
+      messages: [
+        {
+          key: nodeId,
+          value: JSON.stringify(nodeEventMessageToPrimitives(telemetry)),
+        },
+      ],
     });
   });
 
   it('sends heartbeat to the heartbeat topic', async () => {
     await service.onModuleInit();
 
-    const topic = await service.send({
-      ...telemetry,
+    const heartbeat = buildHeartbeatMessage({
       type: BridgeMessageTypeEnum.HEARTBEAT,
-    } as never);
+      nodeId,
+      timestamp: '2026-07-10T10:00:00Z',
+      status: 'online',
+      uptimeSeconds: 120,
+    });
+
+    const topic = await service.send(heartbeat);
 
     expect(topic).toBe('gardenia-bridge.heartbeat');
   });
@@ -91,10 +108,15 @@ describe('KafkaBridgeProducerService', () => {
   it('sends command-ack to the command-acks topic', async () => {
     await service.onModuleInit();
 
-    const topic = await service.send({
-      ...telemetry,
+    const commandAck = buildCommandAckMessage({
       type: BridgeMessageTypeEnum.COMMAND_ACK,
-    } as never);
+      nodeId,
+      timestamp: '2026-07-10T10:00:00Z',
+      commandId: '22222222-2222-4222-8222-222222222222',
+      success: true,
+    });
+
+    const topic = await service.send(commandAck);
 
     expect(topic).toBe('gardenia-bridge.command-acks');
   });

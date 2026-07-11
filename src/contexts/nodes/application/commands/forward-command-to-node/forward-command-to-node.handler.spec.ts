@@ -1,5 +1,7 @@
+import { EventBus } from '@nestjs/cqrs';
+
 import { BridgeMessageTypeEnum } from '../../../domain/enums/bridge-message-type.enum';
-import { ICommandMessage } from '../../../domain/interfaces/command-message.interface';
+import { ICommandMessagePrimitives } from '../../../domain/primitives/command-message.primitives';
 import { IBridgeMessageLogWriteRepository } from '../../../domain/repositories/write/bridge-message-log-write.repository';
 import { MqttCommandPublisherService } from '../../../infrastructure/mqtt/mqtt-command-publisher.service';
 import { ForwardCommandToNodeCommand } from './forward-command-to-node.command';
@@ -9,12 +11,16 @@ describe('ForwardCommandToNodeHandler', () => {
   let handler: ForwardCommandToNodeHandler;
   let publisher: jest.Mocked<MqttCommandPublisherService>;
   let auditRepository: jest.Mocked<IBridgeMessageLogWriteRepository>;
+  let eventBus: jest.Mocked<EventBus>;
+  let publishedEvents: unknown[];
 
-  const envelope: ICommandMessage = {
+  const nodeId = '22222222-2222-4222-8222-222222222222';
+
+  const envelope: ICommandMessagePrimitives = {
     type: BridgeMessageTypeEnum.COMMAND,
-    nodeId: 'node-1',
+    nodeId,
     timestamp: '2026-07-10T10:00:00Z',
-    commandId: 'cmd-1',
+    commandId: '33333333-3333-4333-8333-333333333333',
     action: 'open-valve',
   };
 
@@ -25,31 +31,46 @@ describe('ForwardCommandToNodeHandler', () => {
   });
 
   beforeEach(() => {
+    publishedEvents = [];
     publisher = {
       publish: jest.fn(),
     } as unknown as jest.Mocked<MqttCommandPublisherService>;
     auditRepository = {
-      record: jest.fn(),
+      save: jest.fn(),
     } as unknown as jest.Mocked<IBridgeMessageLogWriteRepository>;
-    handler = new ForwardCommandToNodeHandler(publisher, auditRepository);
+    eventBus = {
+      publishAll: jest.fn((events: unknown[]) => {
+        publishedEvents = [...events];
+      }),
+    } as unknown as jest.Mocked<EventBus>;
+    handler = new ForwardCommandToNodeHandler(
+      publisher,
+      auditRepository,
+      eventBus,
+    );
   });
 
   it('publishes the command over MQTT and records a success audit entry', async () => {
-    publisher.publish.mockResolvedValue('nodes/node-1/commands');
+    publisher.publish.mockResolvedValue(`nodes/${nodeId}/commands`);
 
     await handler.execute(command);
 
-    expect(publisher.publish).toHaveBeenCalledWith('node-1', envelope);
-    expect(auditRepository.record).toHaveBeenCalledWith(
+    expect(publisher.publish).toHaveBeenCalledWith(nodeId, command.envelope);
+    expect(auditRepository.save).toHaveBeenCalledTimes(1);
+
+    const aggregate = auditRepository.save.mock.calls[0][0];
+    expect(aggregate.toPrimitives()).toEqual(
       expect.objectContaining({
         direction: 'outbound',
         type: BridgeMessageTypeEnum.COMMAND,
-        nodeId: 'node-1',
-        destinationTopic: 'nodes/node-1/commands',
+        nodeId,
+        destinationTopic: `nodes/${nodeId}/commands`,
         outcome: 'success',
         errorReason: null,
       }),
     );
+    expect(eventBus.publishAll).toHaveBeenCalledTimes(1);
+    expect(publishedEvents).toHaveLength(1);
   });
 
   it('records an error audit entry and does not throw when the publish fails', async () => {
@@ -57,7 +78,9 @@ describe('ForwardCommandToNodeHandler', () => {
 
     await expect(handler.execute(command)).resolves.toBeUndefined();
 
-    expect(auditRepository.record).toHaveBeenCalledWith(
+    expect(auditRepository.save).toHaveBeenCalledTimes(1);
+    const aggregate = auditRepository.save.mock.calls[0][0];
+    expect(aggregate.toPrimitives()).toEqual(
       expect.objectContaining({
         direction: 'outbound',
         outcome: 'error',

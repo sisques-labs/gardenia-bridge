@@ -1,9 +1,9 @@
-import { IBridgeMessageLogEntry } from '../../interfaces/bridge-message-log-entry.interface';
+import { BridgeMessageLogAggregate } from '../../aggregates/bridge-message-log.aggregate';
 
 export const BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY = Symbol(
   'BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY',
 );
 
 export interface IBridgeMessageLogWriteRepository {
-  record(entry: IBridgeMessageLogEntry): Promise<void>;
+  save(aggregate: BridgeMessageLogAggregate): Promise<void>;
 }

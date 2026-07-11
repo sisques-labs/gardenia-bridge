@@ -6,12 +6,17 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CommandBus } from '@nestjs/cqrs';
+import { CommandBus, EventBus } from '@nestjs/cqrs';
+import { UuidValueObject } from '@sisques-labs/nestjs-kit';
 import { Consumer, Kafka, SASLOptions } from 'kafkajs';
 
 import { IBridgeKafkaConfig } from '@core/config/kafka.config';
 
 import { ForwardCommandToNodeCommand } from '../../application/commands/forward-command-to-node/forward-command-to-node.command';
+import { BridgeMessageLogBuilder } from '../../domain/builders/bridge-message-log.builder';
+import { BridgeMessageDirectionEnum } from '../../domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '../../domain/enums/bridge-message-outcome.enum';
+import { BridgeMessageTypeEnum } from '../../domain/enums/bridge-message-type.enum';
 import {
   BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY,
   IBridgeMessageLogWriteRepository,
@@ -29,6 +34,7 @@ export class KafkaBridgeCommandsConsumerService
   constructor(
     private readonly configService: ConfigService,
     private readonly commandBus: CommandBus,
+    private readonly eventBus: EventBus,
     @Inject(BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY)
     private readonly bridgeMessageLogWriteRepository: IBridgeMessageLogWriteRepository,
   ) {}
@@ -102,17 +108,34 @@ export class KafkaBridgeCommandsConsumerService
         `Discarding invalid message on "${topic}": ${errorReason}`,
       );
 
-      await this.bridgeMessageLogWriteRepository.record({
-        direction: 'outbound',
-        type: 'unknown',
-        nodeId: null,
-        sourceTopic: topic,
-        destinationTopic: null,
-        rawPayload,
-        outcome: 'error',
-        errorReason,
-        processedAt: new Date().toISOString(),
-      });
+      try {
+        const now = new Date();
+        const aggregate = new BridgeMessageLogBuilder()
+          .withId(UuidValueObject.generate().value)
+          .withCreatedAt(now)
+          .withUpdatedAt(now)
+          .withDirection(BridgeMessageDirectionEnum.OUTBOUND)
+          .withType(BridgeMessageTypeEnum.UNKNOWN)
+          .withNodeId(null)
+          .withSourceTopic(topic)
+          .withDestinationTopic(null)
+          .withRawPayload(rawPayload)
+          .withOutcome(BridgeMessageOutcomeEnum.ERROR)
+          .withErrorReason(errorReason)
+          .withProcessedAt(now.toISOString())
+          .build();
+        aggregate.record();
+
+        await this.bridgeMessageLogWriteRepository.save(aggregate);
+        await this.eventBus.publishAll(aggregate.getUncommittedEvents());
+        await aggregate.commit();
+      } catch (auditError) {
+        const auditErrorReason =
+          auditError instanceof Error ? auditError.message : String(auditError);
+        this.logger.error(
+          `Failed to record audit entry for invalid message on "${topic}": ${auditErrorReason}`,
+        );
+      }
     }
   }
 }
