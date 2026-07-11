@@ -4,7 +4,7 @@ import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-messa
 import { InvalidMessagePayloadException } from '@contexts/nodes/domain/exceptions/invalid-message-payload.exception';
 import { ICommandAckMessagePrimitives } from '@contexts/nodes/domain/primitives/command-ack-message.primitives';
 import { IHeartbeatMessagePrimitives } from '@contexts/nodes/domain/primitives/heartbeat-message.primitives';
-import { NodeEventMessagePrimitives } from '@contexts/nodes/domain/primitives/node-event-message.primitives.type';
+import { NodeEventMessagePrimitives } from '@contexts/nodes/domain/types/node-event-message-primitives.type';
 import { ITelemetryMessagePrimitives } from '@contexts/nodes/domain/primitives/telemetry-message.primitives';
 import { AckMessageValueObject } from '@contexts/nodes/domain/value-objects/ack-message/ack-message.value-object';
 import { BridgeMessageTypeValueObject } from '@contexts/nodes/domain/value-objects/bridge-message-type/bridge-message-type.value-object';
@@ -19,7 +19,7 @@ import { UptimeSecondsValueObject } from '@contexts/nodes/domain/value-objects/u
 import { ICommandAckMessage } from '@contexts/nodes/domain/interfaces/command-ack-message.interface';
 import { IHeartbeatMessage } from '@contexts/nodes/domain/interfaces/heartbeat-message.interface';
 import { ITelemetryMessage } from '@contexts/nodes/domain/interfaces/telemetry-message.interface';
-import { NodeEventMessage } from '@contexts/nodes/domain/interfaces/node-event-message.type';
+import { NodeEventMessage } from '@contexts/nodes/domain/types/node-event-message.type';
 
 export function buildTelemetryMessage(
   primitives: ITelemetryMessagePrimitives,

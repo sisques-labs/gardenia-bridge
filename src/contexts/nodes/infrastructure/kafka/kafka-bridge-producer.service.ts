@@ -11,7 +11,7 @@ import { IBridgeKafkaConfig } from '@core/config/kafka.config';
 
 import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 import { nodeEventMessageToPrimitives } from '@contexts/nodes/domain/factories/node-event-message.factory';
-import { NodeEventMessage } from '@contexts/nodes/domain/interfaces/node-event-message.type';
+import { NodeEventMessage } from '@contexts/nodes/domain/types/node-event-message.type';
 
 @Injectable()
 export class KafkaBridgeProducerService

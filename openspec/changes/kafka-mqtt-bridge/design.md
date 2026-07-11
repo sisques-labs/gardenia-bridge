@@ -83,7 +83,7 @@ explicit about the deviations matters more than usual.
 | Delivery semantics | Best-effort: MQTT QoS 0/1, no Kafka transactional writes, no retry/backoff, no DLQ | At-least-once with retries + DLQ | Explicit user decision for v1 (telemetry loss tolerance); revisit if a use case needs guaranteed delivery (e.g. safety-critical commands) |
 | Node/device auth | None in v1 | Username/password per node; mutual TLS | Explicit user decision (dev/PoC stage). MQTT client config already reads `MQTT_USERNAME`/`MQTT_PASSWORD` from env (unset by default) so broker-level auth can be turned on later without a client code change; per-node identity/authorization is a bigger design (out of scope, see Open Questions) |
 | Audit persistence engine | SQLite via a second TypeORM `DataSource` (`better-sqlite3` driver) | (a) Raw `better-sqlite3` with hand-written SQL, no ORM (b) Reuse the existing Postgres connection instead of SQLite | (a) rejected: the template's entity/mapper/migration tooling (`pnpm migration:generate`, entity conventions, repository pattern) already exists for TypeORM — hand-rolled SQL would be a second, inconsistent persistence story for one table. (b) rejected: explicit requirement — the bridge is meant to run at the edge, near the nodes, without depending on network reachability to the central Postgres |
-| Audit log query surface | None (write-only in v1) | REST/GraphQL/MCP read endpoints | Not requested; keeps this context transport-free as decided. The SQLite file is directly inspectable (`sqlite3 file.db "select * from bridge_message_log"`) for debugging without shipping an API |
+| Audit log query surface | None (write-only in v1) — `findById`/`findByCriteria` exist on `BridgeMessageLogTypeormRepository` (required by `IBaseWriteRepository<T>`, the org-standard write-repository shape) but nothing calls them | REST/GraphQL/MCP read endpoints | Not requested; keeps this context transport-free as decided. The SQLite file is directly inspectable (`sqlite3 file.db "select * from bridge_message_log"`) for debugging without shipping an API |
 | Command/action payload validation | Envelope + top-level field validation only (`commandId`, `action`, `params` as an opaque object); no per-`action` schema | Registry of per-`action` Zod schemas | The bridge doesn't know what actions exist — that's a `gardenia-api`/firmware-side concern. Validating deeper here would couple the bridge to business semantics it's explicitly not supposed to own |
 
 > **Note — reversal of the original "no VOs / no aggregate" decision.** The
@@ -157,15 +157,17 @@ domain/
   primitives/heartbeat-message.primitives.ts
   primitives/command-message.primitives.ts
   primitives/command-ack-message.primitives.ts
-  primitives/node-event-message.primitives.type.ts   # union of the above 3 (excludes command)
   primitives/bridge-message-log.primitives.ts        # extends BasePrimitives
   interfaces/bridge-message-envelope.interface.ts   # shared { type, nodeId, timestamp }, VO-typed
   interfaces/telemetry-message.interface.ts         # + sensorType, value, unit? — VO-typed
   interfaces/heartbeat-message.interface.ts         # + status?, uptimeSeconds? — VO-typed
   interfaces/command-message.interface.ts           # + commandId, action, params — VO-typed
   interfaces/command-ack-message.interface.ts       # + commandId, success, message? — VO-typed
-  interfaces/node-event-message.type.ts             # union of telemetry|heartbeat|command-ack (VO-typed)
-  interfaces/bridge-message-log.interface.ts        # VO-typed shape consumed by the aggregate constructor
+  interfaces/bridge-message-log.interface.ts        # VO-typed shape consumed by the aggregate constructor (includes id/createdAt/updatedAt)
+  types/node-event-message.type.ts                  # union of telemetry|heartbeat|command-ack (VO-typed) — a union
+                                                      # alias isn't an "interface", so it lives in types/, not interfaces/
+  types/node-event-message-primitives.type.ts        # same union, primitives-typed; also types/, not primitives/
+                                                      # (a file can't be both — pick one folder/suffix, not both)
   factories/node-event-message.factory.ts   # buildTelemetryMessage/buildHeartbeatMessage/buildCommandAckMessage/
                                              # buildNodeEventMessage (primitives → VO) + nodeEventMessageToPrimitives (VO → primitives)
   factories/command-message.factory.ts      # buildCommandMessage + commandMessageToPrimitives
@@ -173,9 +175,10 @@ domain/
   builders/bridge-message-log.builder.ts       # BridgeMessageLogBuilder extends BaseBuilder, DI-registered (see below)
   view-models/bridge-message-log.view-model.ts # satisfies IBuilder<Aggregate, ViewModel>; not exposed via any transport
   events/bridge-message-recorded/bridge-message-recorded.event.ts
-  events/interfaces/bridge-message-log-event-data.interface.ts
+  events/interfaces/bridge-message-log-event-data.interface.ts  # type alias to IBridgeMessageLogPrimitives, matching IQrEventData
   exceptions/invalid-message-payload.exception.ts   # 400-equivalent, thrown on Zod failure
-  repositories/write/bridge-message-log-write.repository.ts  # port + DI token — save(aggregate), not record(entry)
+  repositories/write/bridge-message-log-write.repository.ts  # port + DI token — type alias to IBaseWriteRepository<BridgeMessageLogAggregate>,
+                                                                # matching IUserWriteRepository/IFileWriteRepository (save/findById/findByCriteria/delete)
 application/
   commands/forward-node-event-to-kafka/forward-node-event-to-kafka.command.ts  # Input = primitives; constructor wraps into VOs (pick/omit convention)
   commands/forward-node-event-to-kafka/forward-node-event-to-kafka.handler.ts  # extends BaseCommandHandler; builds+saves+publishes the aggregate
@@ -311,13 +314,23 @@ export class BridgeMessageLogAggregate extends BaseAggregate {
   // + getters for every field
 }
 
-// domain/repositories/write/bridge-message-log-write.repository.ts
+// domain/repositories/write/bridge-message-log-write.repository.ts — a type
+// alias to the kit's IBaseWriteRepository<T>, matching IUserWriteRepository/
+// IFileWriteRepository elsewhere in the org, per code review (the original
+// draft had a bespoke save()-only port). findById/findByCriteria/delete are
+// implemented on the TypeORM repository (straightforward — hydrate via
+// BridgeMessageLogBuilder, mirroring FileTypeOrmWriteRepository's mapper
+// pattern) but nothing in this context calls them yet; the audit log is
+// still write-only/no-query-surface by design (see "Audit log query
+// surface" below) — the interface is just uniform with every other write
+// repository in the org now. save() keeps its catch-and-log-don't-rethrow
+// behavior (a broken audit write must never block the relay) but now
+// returns the aggregate instead of void, satisfying IBaseWriteRepository.
 export const BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY = Symbol(
   'BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY',
 );
-export interface IBridgeMessageLogWriteRepository {
-  save(aggregate: BridgeMessageLogAggregate): Promise<void>;
-}
+export type IBridgeMessageLogWriteRepository =
+  IBaseWriteRepository<BridgeMessageLogAggregate>;
 
 // application/commands/forward-node-event-to-kafka/forward-node-event-to-kafka.command.ts
 export interface ForwardNodeEventToKafkaCommandInput {

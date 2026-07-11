@@ -72,7 +72,11 @@ describe('Kafka bridge — testcontainers integration', () => {
       const fakeAuditRepository: IBridgeMessageLogWriteRepository = {
         save: jest.fn(async (aggregate) => {
           auditEntries.push(aggregate.toPrimitives());
+          return aggregate;
         }),
+        findById: jest.fn().mockResolvedValue(null),
+        findByCriteria: jest.fn(),
+        delete: jest.fn(),
       };
       fakePublisher = {
         publish: jest.fn().mockResolvedValue(`nodes/${NODE_ID_2}/commands`),

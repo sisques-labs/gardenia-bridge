@@ -64,7 +64,11 @@ describe('MQTT bridge — aedes integration', () => {
     const fakeAuditRepository: IBridgeMessageLogWriteRepository = {
       save: jest.fn(async (aggregate) => {
         auditEntries.push(aggregate.toPrimitives());
+        return aggregate;
       }),
+      findById: jest.fn().mockResolvedValue(null),
+      findByCriteria: jest.fn(),
+      delete: jest.fn(),
     };
 
     fakeProducer = { send: jest.fn().mockResolvedValue('fake-topic') };

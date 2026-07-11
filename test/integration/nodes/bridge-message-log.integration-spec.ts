@@ -35,6 +35,7 @@ describe('BridgeMessageLog — SQLite integration', () => {
 
     repository = new BridgeMessageLogTypeormRepository(
       dataSource.getRepository(BridgeMessageLogEntity),
+      new BridgeMessageLogBuilder(),
     );
   });
 

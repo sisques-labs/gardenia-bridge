@@ -1,6 +1,6 @@
 import { buildNodeEventMessage } from '@contexts/nodes/domain/factories/node-event-message.factory';
-import { NodeEventMessage } from '@contexts/nodes/domain/interfaces/node-event-message.type';
-import { NodeEventMessagePrimitives } from '@contexts/nodes/domain/primitives/node-event-message.primitives.type';
+import { NodeEventMessage } from '@contexts/nodes/domain/types/node-event-message.type';
+import { NodeEventMessagePrimitives } from '@contexts/nodes/domain/types/node-event-message-primitives.type';
 import { RawPayloadValueObject } from '@contexts/nodes/domain/value-objects/raw-payload/raw-payload.value-object';
 import { TopicValueObject } from '@contexts/nodes/domain/value-objects/topic/topic.value-object';
 
