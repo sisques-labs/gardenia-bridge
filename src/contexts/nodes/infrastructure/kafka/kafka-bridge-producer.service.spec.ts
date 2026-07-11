@@ -1,12 +1,12 @@
 import { ConfigService } from '@nestjs/config';
 
-import { BridgeMessageTypeEnum } from '../../domain/enums/bridge-message-type.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 import {
   buildCommandAckMessage,
   buildHeartbeatMessage,
   buildTelemetryMessage,
   nodeEventMessageToPrimitives,
-} from '../../domain/factories/node-event-message.factory';
+} from '@contexts/nodes/domain/factories/node-event-message.factory';
 import { KafkaBridgeProducerService } from './kafka-bridge-producer.service';
 
 const mockProducer = {

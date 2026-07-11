@@ -1,5 +1,5 @@
-import { BridgeMessageTypeEnum } from '../../domain/enums/bridge-message-type.enum';
-import { InvalidMessagePayloadException } from '../../domain/exceptions/invalid-message-payload.exception';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { InvalidMessagePayloadException } from '@contexts/nodes/domain/exceptions/invalid-message-payload.exception';
 import {
   extractNodeIdFromTopic,
   parseNodeEventPayload,

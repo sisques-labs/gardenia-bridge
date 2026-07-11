@@ -1,8 +1,8 @@
 import { ConfigService } from '@nestjs/config';
 import { CommandBus, EventBus } from '@nestjs/cqrs';
 
-import { ForwardCommandToNodeCommand } from '../../application/commands/forward-command-to-node/forward-command-to-node.command';
-import { IBridgeMessageLogWriteRepository } from '../../domain/repositories/write/bridge-message-log-write.repository';
+import { ForwardCommandToNodeCommand } from '@contexts/nodes/application/commands/forward-command-to-node/forward-command-to-node.command';
+import { IBridgeMessageLogWriteRepository } from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
 import { KafkaBridgeCommandsConsumerService } from './kafka-bridge-commands-consumer.service';
 
 let capturedEachMessage:

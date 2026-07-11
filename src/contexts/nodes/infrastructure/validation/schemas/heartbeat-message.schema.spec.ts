@@ -1,4 +1,4 @@
-import { BridgeMessageTypeEnum } from '../../../domain/enums/bridge-message-type.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 import { heartbeatMessageSchema } from './heartbeat-message.schema';
 
 describe('heartbeatMessageSchema', () => {

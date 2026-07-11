@@ -1,4 +1,4 @@
-import { BridgeMessageDirectionEnum } from '../../enums/bridge-message-direction.enum';
+import { BridgeMessageDirectionEnum } from '@contexts/nodes/domain/enums/bridge-message-direction.enum';
 import { BridgeMessageDirectionValueObject } from './bridge-message-direction.value-object';
 
 describe('BridgeMessageDirectionValueObject', () => {

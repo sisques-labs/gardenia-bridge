@@ -4,17 +4,17 @@ import { ConfigModule } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
 import { Test, TestingModule } from '@nestjs/testing';
 
-import { kafkaConfig } from '../../../src/core/config/kafka.config';
-import { ForwardCommandToNodeHandler } from '../../../src/contexts/nodes/application/commands/forward-command-to-node/forward-command-to-node.handler';
-import { BridgeMessageTypeEnum } from '../../../src/contexts/nodes/domain/enums/bridge-message-type.enum';
-import { buildTelemetryMessage } from '../../../src/contexts/nodes/domain/factories/node-event-message.factory';
+import { kafkaConfig } from '@core/config/kafka.config';
+import { ForwardCommandToNodeHandler } from '@contexts/nodes/application/commands/forward-command-to-node/forward-command-to-node.handler';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { buildTelemetryMessage } from '@contexts/nodes/domain/factories/node-event-message.factory';
 import {
   BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY,
   IBridgeMessageLogWriteRepository,
-} from '../../../src/contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
-import { KafkaBridgeCommandsConsumerService } from '../../../src/contexts/nodes/infrastructure/kafka/kafka-bridge-commands-consumer.service';
-import { KafkaBridgeProducerService } from '../../../src/contexts/nodes/infrastructure/kafka/kafka-bridge-producer.service';
-import { MqttCommandPublisherService } from '../../../src/contexts/nodes/infrastructure/mqtt/mqtt-command-publisher.service';
+} from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
+import { KafkaBridgeCommandsConsumerService } from '@contexts/nodes/infrastructure/kafka/kafka-bridge-commands-consumer.service';
+import { KafkaBridgeProducerService } from '@contexts/nodes/infrastructure/kafka/kafka-bridge-producer.service';
+import { MqttCommandPublisherService } from '@contexts/nodes/infrastructure/mqtt/mqtt-command-publisher.service';
 
 /**
  * Real Kafka round-trip via testcontainers, mirroring the

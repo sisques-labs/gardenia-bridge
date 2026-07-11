@@ -5,12 +5,12 @@ import { join } from 'path';
 import { UuidValueObject } from '@sisques-labs/nestjs-kit';
 import { DataSource } from 'typeorm';
 
-import { BridgeMessageLogBuilder } from '../../../src/contexts/nodes/domain/builders/bridge-message-log.builder';
-import { BridgeMessageDirectionEnum } from '../../../src/contexts/nodes/domain/enums/bridge-message-direction.enum';
-import { BridgeMessageOutcomeEnum } from '../../../src/contexts/nodes/domain/enums/bridge-message-outcome.enum';
-import { BridgeMessageTypeEnum } from '../../../src/contexts/nodes/domain/enums/bridge-message-type.enum';
-import { BridgeMessageLogEntity } from '../../../src/contexts/nodes/infrastructure/persistence/sqlite/entities/bridge-message-log.entity';
-import { BridgeMessageLogTypeormRepository } from '../../../src/contexts/nodes/infrastructure/persistence/sqlite/repositories/bridge-message-log-typeorm.repository';
+import { BridgeMessageLogBuilder } from '@contexts/nodes/domain/builders/bridge-message-log.builder';
+import { BridgeMessageDirectionEnum } from '@contexts/nodes/domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '@contexts/nodes/domain/enums/bridge-message-outcome.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { BridgeMessageLogEntity } from '@contexts/nodes/infrastructure/persistence/sqlite/entities/bridge-message-log.entity';
+import { BridgeMessageLogTypeormRepository } from '@contexts/nodes/infrastructure/persistence/sqlite/repositories/bridge-message-log-typeorm.repository';
 
 describe('BridgeMessageLog — SQLite integration', () => {
   let dataSource: DataSource;

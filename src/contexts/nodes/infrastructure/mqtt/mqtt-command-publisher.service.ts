@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { commandMessageToPrimitives } from '../../domain/factories/command-message.factory';
-import { ICommandMessage } from '../../domain/interfaces/command-message.interface';
+import { commandMessageToPrimitives } from '@contexts/nodes/domain/factories/command-message.factory';
+import { ICommandMessage } from '@contexts/nodes/domain/interfaces/command-message.interface';
 import { MqttClientProvider } from './mqtt-client.provider';
 
 @Injectable()

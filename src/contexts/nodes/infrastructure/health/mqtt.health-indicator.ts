@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { HealthIndicator, HealthIndicatorResult } from '@nestjs/terminus';
 
-import { MqttClientProvider } from '../mqtt/mqtt-client.provider';
+import { MqttClientProvider } from '@contexts/nodes/infrastructure/mqtt/mqtt-client.provider';
 
 @Injectable()
 export class MqttHealthIndicator extends HealthIndicator {

@@ -5,18 +5,18 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { Test, TestingModule } from '@nestjs/testing';
 import { connect, MqttClient } from 'mqtt';
 
-import { mqttConfig } from '../../../src/core/config/mqtt.config';
-import { ForwardNodeEventToKafkaHandler } from '../../../src/contexts/nodes/application/commands/forward-node-event-to-kafka/forward-node-event-to-kafka.handler';
-import { BridgeMessageTypeEnum } from '../../../src/contexts/nodes/domain/enums/bridge-message-type.enum';
-import { buildCommandMessage } from '../../../src/contexts/nodes/domain/factories/command-message.factory';
+import { mqttConfig } from '@core/config/mqtt.config';
+import { ForwardNodeEventToKafkaHandler } from '@contexts/nodes/application/commands/forward-node-event-to-kafka/forward-node-event-to-kafka.handler';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { buildCommandMessage } from '@contexts/nodes/domain/factories/command-message.factory';
 import {
   BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY,
   IBridgeMessageLogWriteRepository,
-} from '../../../src/contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
-import { KafkaBridgeProducerService } from '../../../src/contexts/nodes/infrastructure/kafka/kafka-bridge-producer.service';
-import { MqttClientProvider } from '../../../src/contexts/nodes/infrastructure/mqtt/mqtt-client.provider';
-import { MqttCommandPublisherService } from '../../../src/contexts/nodes/infrastructure/mqtt/mqtt-command-publisher.service';
-import { MqttNodeListenerService } from '../../../src/contexts/nodes/infrastructure/mqtt/mqtt-node-listener.service';
+} from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
+import { KafkaBridgeProducerService } from '@contexts/nodes/infrastructure/kafka/kafka-bridge-producer.service';
+import { MqttClientProvider } from '@contexts/nodes/infrastructure/mqtt/mqtt-client.provider';
+import { MqttCommandPublisherService } from '@contexts/nodes/infrastructure/mqtt/mqtt-command-publisher.service';
+import { MqttNodeListenerService } from '@contexts/nodes/infrastructure/mqtt/mqtt-node-listener.service';
 
 // aedes 0.x ships no useful TS types beyond a plain factory function.
 // eslint-disable-next-line @typescript-eslint/no-require-imports

@@ -1,6 +1,6 @@
-import { BridgeMessageTypeEnum } from '../../domain/enums/bridge-message-type.enum';
-import { InvalidMessagePayloadException } from '../../domain/exceptions/invalid-message-payload.exception';
-import { NodeEventMessagePrimitives } from '../../domain/primitives/node-event-message.primitives.type';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { InvalidMessagePayloadException } from '@contexts/nodes/domain/exceptions/invalid-message-payload.exception';
+import { NodeEventMessagePrimitives } from '@contexts/nodes/domain/primitives/node-event-message.primitives.type';
 import { commandAckMessageSchema } from './schemas/command-ack-message.schema';
 import { heartbeatMessageSchema } from './schemas/heartbeat-message.schema';
 import { telemetryMessageSchema } from './schemas/telemetry-message.schema';

@@ -1,8 +1,8 @@
-import { BridgeMessageTypeEnum } from '../../domain/enums/bridge-message-type.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 import {
   buildCommandMessage,
   commandMessageToPrimitives,
-} from '../../domain/factories/command-message.factory';
+} from '@contexts/nodes/domain/factories/command-message.factory';
 import { MqttClientProvider } from './mqtt-client.provider';
 import { MqttCommandPublisherService } from './mqtt-command-publisher.service';
 

@@ -1,4 +1,4 @@
-import { InvalidMessagePayloadException } from '../../domain/exceptions/invalid-message-payload.exception';
+import { InvalidMessagePayloadException } from '@contexts/nodes/domain/exceptions/invalid-message-payload.exception';
 import { parseCommandPayload } from './parse-command-payload';
 
 describe('parseCommandPayload', () => {

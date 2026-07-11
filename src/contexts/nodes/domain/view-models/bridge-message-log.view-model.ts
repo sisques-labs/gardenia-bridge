@@ -1,8 +1,8 @@
 import { BaseViewModel } from '@sisques-labs/nestjs-kit';
 
-import { BridgeMessageDirectionEnum } from '../enums/bridge-message-direction.enum';
-import { BridgeMessageOutcomeEnum } from '../enums/bridge-message-outcome.enum';
-import { BridgeMessageTypeEnum } from '../enums/bridge-message-type.enum';
+import { BridgeMessageDirectionEnum } from '@contexts/nodes/domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '@contexts/nodes/domain/enums/bridge-message-outcome.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 
 // Not exposed via any query/transport today (the audit log is write-only —
 // see design.md) but kept so BridgeMessageLogBuilder can implement the

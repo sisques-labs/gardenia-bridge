@@ -4,18 +4,18 @@ import {
   UuidValueObject,
 } from '@sisques-labs/nestjs-kit';
 
-import { BridgeMessageLogAggregate } from '../aggregates/bridge-message-log.aggregate';
-import { BridgeMessageDirectionEnum } from '../enums/bridge-message-direction.enum';
-import { BridgeMessageOutcomeEnum } from '../enums/bridge-message-outcome.enum';
-import { BridgeMessageTypeEnum } from '../enums/bridge-message-type.enum';
-import { BridgeMessageDirectionValueObject } from '../value-objects/bridge-message-direction/bridge-message-direction.value-object';
-import { BridgeMessageOutcomeValueObject } from '../value-objects/bridge-message-outcome/bridge-message-outcome.value-object';
-import { BridgeMessageTypeValueObject } from '../value-objects/bridge-message-type/bridge-message-type.value-object';
-import { ErrorReasonValueObject } from '../value-objects/error-reason/error-reason.value-object';
-import { NodeIdValueObject } from '../value-objects/node-id/node-id.value-object';
-import { RawPayloadValueObject } from '../value-objects/raw-payload/raw-payload.value-object';
-import { TopicValueObject } from '../value-objects/topic/topic.value-object';
-import { BridgeMessageLogViewModel } from '../view-models/bridge-message-log.view-model';
+import { BridgeMessageLogAggregate } from '@contexts/nodes/domain/aggregates/bridge-message-log.aggregate';
+import { BridgeMessageDirectionEnum } from '@contexts/nodes/domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '@contexts/nodes/domain/enums/bridge-message-outcome.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { BridgeMessageDirectionValueObject } from '@contexts/nodes/domain/value-objects/bridge-message-direction/bridge-message-direction.value-object';
+import { BridgeMessageOutcomeValueObject } from '@contexts/nodes/domain/value-objects/bridge-message-outcome/bridge-message-outcome.value-object';
+import { BridgeMessageTypeValueObject } from '@contexts/nodes/domain/value-objects/bridge-message-type/bridge-message-type.value-object';
+import { ErrorReasonValueObject } from '@contexts/nodes/domain/value-objects/error-reason/error-reason.value-object';
+import { NodeIdValueObject } from '@contexts/nodes/domain/value-objects/node-id/node-id.value-object';
+import { RawPayloadValueObject } from '@contexts/nodes/domain/value-objects/raw-payload/raw-payload.value-object';
+import { TopicValueObject } from '@contexts/nodes/domain/value-objects/topic/topic.value-object';
+import { BridgeMessageLogViewModel } from '@contexts/nodes/domain/view-models/bridge-message-log.view-model';
 
 export class BridgeMessageLogBuilder extends BaseBuilder<
   BridgeMessageLogAggregate,

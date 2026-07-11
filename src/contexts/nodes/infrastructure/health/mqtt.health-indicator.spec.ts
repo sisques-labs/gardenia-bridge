@@ -1,4 +1,4 @@
-import { MqttClientProvider } from '../mqtt/mqtt-client.provider';
+import { MqttClientProvider } from '@contexts/nodes/infrastructure/mqtt/mqtt-client.provider';
 import { MqttHealthIndicator } from './mqtt.health-indicator';
 
 describe('MqttHealthIndicator', () => {

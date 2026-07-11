@@ -1,25 +1,25 @@
 import { DateValueObject } from '@sisques-labs/nestjs-kit';
 
-import { BridgeMessageTypeEnum } from '../enums/bridge-message-type.enum';
-import { InvalidMessagePayloadException } from '../exceptions/invalid-message-payload.exception';
-import { ICommandAckMessagePrimitives } from '../primitives/command-ack-message.primitives';
-import { IHeartbeatMessagePrimitives } from '../primitives/heartbeat-message.primitives';
-import { NodeEventMessagePrimitives } from '../primitives/node-event-message.primitives.type';
-import { ITelemetryMessagePrimitives } from '../primitives/telemetry-message.primitives';
-import { AckMessageValueObject } from '../value-objects/ack-message/ack-message.value-object';
-import { BridgeMessageTypeValueObject } from '../value-objects/bridge-message-type/bridge-message-type.value-object';
-import { CommandIdValueObject } from '../value-objects/command-id/command-id.value-object';
-import { CommandSuccessValueObject } from '../value-objects/command-success/command-success.value-object';
-import { NodeIdValueObject } from '../value-objects/node-id/node-id.value-object';
-import { NodeStatusValueObject } from '../value-objects/node-status/node-status.value-object';
-import { SensorTypeValueObject } from '../value-objects/sensor-type/sensor-type.value-object';
-import { SensorUnitValueObject } from '../value-objects/sensor-unit/sensor-unit.value-object';
-import { SensorValueValueObject } from '../value-objects/sensor-value/sensor-value.value-object';
-import { UptimeSecondsValueObject } from '../value-objects/uptime-seconds/uptime-seconds.value-object';
-import { ICommandAckMessage } from '../interfaces/command-ack-message.interface';
-import { IHeartbeatMessage } from '../interfaces/heartbeat-message.interface';
-import { ITelemetryMessage } from '../interfaces/telemetry-message.interface';
-import { NodeEventMessage } from '../interfaces/node-event-message.type';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { InvalidMessagePayloadException } from '@contexts/nodes/domain/exceptions/invalid-message-payload.exception';
+import { ICommandAckMessagePrimitives } from '@contexts/nodes/domain/primitives/command-ack-message.primitives';
+import { IHeartbeatMessagePrimitives } from '@contexts/nodes/domain/primitives/heartbeat-message.primitives';
+import { NodeEventMessagePrimitives } from '@contexts/nodes/domain/primitives/node-event-message.primitives.type';
+import { ITelemetryMessagePrimitives } from '@contexts/nodes/domain/primitives/telemetry-message.primitives';
+import { AckMessageValueObject } from '@contexts/nodes/domain/value-objects/ack-message/ack-message.value-object';
+import { BridgeMessageTypeValueObject } from '@contexts/nodes/domain/value-objects/bridge-message-type/bridge-message-type.value-object';
+import { CommandIdValueObject } from '@contexts/nodes/domain/value-objects/command-id/command-id.value-object';
+import { CommandSuccessValueObject } from '@contexts/nodes/domain/value-objects/command-success/command-success.value-object';
+import { NodeIdValueObject } from '@contexts/nodes/domain/value-objects/node-id/node-id.value-object';
+import { NodeStatusValueObject } from '@contexts/nodes/domain/value-objects/node-status/node-status.value-object';
+import { SensorTypeValueObject } from '@contexts/nodes/domain/value-objects/sensor-type/sensor-type.value-object';
+import { SensorUnitValueObject } from '@contexts/nodes/domain/value-objects/sensor-unit/sensor-unit.value-object';
+import { SensorValueValueObject } from '@contexts/nodes/domain/value-objects/sensor-value/sensor-value.value-object';
+import { UptimeSecondsValueObject } from '@contexts/nodes/domain/value-objects/uptime-seconds/uptime-seconds.value-object';
+import { ICommandAckMessage } from '@contexts/nodes/domain/interfaces/command-ack-message.interface';
+import { IHeartbeatMessage } from '@contexts/nodes/domain/interfaces/heartbeat-message.interface';
+import { ITelemetryMessage } from '@contexts/nodes/domain/interfaces/telemetry-message.interface';
+import { NodeEventMessage } from '@contexts/nodes/domain/interfaces/node-event-message.type';
 
 export function buildTelemetryMessage(
   primitives: ITelemetryMessagePrimitives,

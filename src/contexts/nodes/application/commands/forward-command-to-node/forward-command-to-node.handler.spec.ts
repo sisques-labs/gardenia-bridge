@@ -1,9 +1,9 @@
 import { EventBus } from '@nestjs/cqrs';
 
-import { BridgeMessageTypeEnum } from '../../../domain/enums/bridge-message-type.enum';
-import { ICommandMessagePrimitives } from '../../../domain/primitives/command-message.primitives';
-import { IBridgeMessageLogWriteRepository } from '../../../domain/repositories/write/bridge-message-log-write.repository';
-import { MqttCommandPublisherService } from '../../../infrastructure/mqtt/mqtt-command-publisher.service';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { ICommandMessagePrimitives } from '@contexts/nodes/domain/primitives/command-message.primitives';
+import { IBridgeMessageLogWriteRepository } from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
+import { MqttCommandPublisherService } from '@contexts/nodes/infrastructure/mqtt/mqtt-command-publisher.service';
 import { ForwardCommandToNodeCommand } from './forward-command-to-node.command';
 import { ForwardCommandToNodeHandler } from './forward-command-to-node.handler';
 

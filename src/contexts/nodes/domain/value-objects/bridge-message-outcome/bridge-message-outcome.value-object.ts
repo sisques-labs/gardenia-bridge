@@ -1,6 +1,6 @@
 import { EnumValueObject } from '@sisques-labs/nestjs-kit';
 
-import { BridgeMessageOutcomeEnum } from '../../enums/bridge-message-outcome.enum';
+import { BridgeMessageOutcomeEnum } from '@contexts/nodes/domain/enums/bridge-message-outcome.enum';
 
 export class BridgeMessageOutcomeValueObject extends EnumValueObject<
   typeof BridgeMessageOutcomeEnum

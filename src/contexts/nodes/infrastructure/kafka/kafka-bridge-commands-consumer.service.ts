@@ -12,16 +12,16 @@ import { Consumer, Kafka, SASLOptions } from 'kafkajs';
 
 import { IBridgeKafkaConfig } from '@core/config/kafka.config';
 
-import { ForwardCommandToNodeCommand } from '../../application/commands/forward-command-to-node/forward-command-to-node.command';
-import { BridgeMessageLogBuilder } from '../../domain/builders/bridge-message-log.builder';
-import { BridgeMessageDirectionEnum } from '../../domain/enums/bridge-message-direction.enum';
-import { BridgeMessageOutcomeEnum } from '../../domain/enums/bridge-message-outcome.enum';
-import { BridgeMessageTypeEnum } from '../../domain/enums/bridge-message-type.enum';
+import { ForwardCommandToNodeCommand } from '@contexts/nodes/application/commands/forward-command-to-node/forward-command-to-node.command';
+import { BridgeMessageLogBuilder } from '@contexts/nodes/domain/builders/bridge-message-log.builder';
+import { BridgeMessageDirectionEnum } from '@contexts/nodes/domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '@contexts/nodes/domain/enums/bridge-message-outcome.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 import {
   BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY,
   IBridgeMessageLogWriteRepository,
-} from '../../domain/repositories/write/bridge-message-log-write.repository';
-import { parseCommandPayload } from '../validation/parse-command-payload';
+} from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
+import { parseCommandPayload } from '@contexts/nodes/infrastructure/validation/parse-command-payload';
 
 @Injectable()
 export class KafkaBridgeCommandsConsumerService

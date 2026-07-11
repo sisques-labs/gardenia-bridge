@@ -1,8 +1,8 @@
-import { BridgeMessageTypeEnum } from '../enums/bridge-message-type.enum';
-import { InvalidMessagePayloadException } from '../exceptions/invalid-message-payload.exception';
-import { ICommandAckMessagePrimitives } from '../primitives/command-ack-message.primitives';
-import { IHeartbeatMessagePrimitives } from '../primitives/heartbeat-message.primitives';
-import { ITelemetryMessagePrimitives } from '../primitives/telemetry-message.primitives';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { InvalidMessagePayloadException } from '@contexts/nodes/domain/exceptions/invalid-message-payload.exception';
+import { ICommandAckMessagePrimitives } from '@contexts/nodes/domain/primitives/command-ack-message.primitives';
+import { IHeartbeatMessagePrimitives } from '@contexts/nodes/domain/primitives/heartbeat-message.primitives';
+import { ITelemetryMessagePrimitives } from '@contexts/nodes/domain/primitives/telemetry-message.primitives';
 import {
   buildCommandAckMessage,
   buildHeartbeatMessage,

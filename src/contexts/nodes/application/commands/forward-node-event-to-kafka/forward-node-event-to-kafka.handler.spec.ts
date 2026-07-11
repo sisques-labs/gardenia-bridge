@@ -1,9 +1,9 @@
 import { EventBus } from '@nestjs/cqrs';
 
-import { BridgeMessageTypeEnum } from '../../../domain/enums/bridge-message-type.enum';
-import { ITelemetryMessagePrimitives } from '../../../domain/primitives/telemetry-message.primitives';
-import { IBridgeMessageLogWriteRepository } from '../../../domain/repositories/write/bridge-message-log-write.repository';
-import { KafkaBridgeProducerService } from '../../../infrastructure/kafka/kafka-bridge-producer.service';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { ITelemetryMessagePrimitives } from '@contexts/nodes/domain/primitives/telemetry-message.primitives';
+import { IBridgeMessageLogWriteRepository } from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
+import { KafkaBridgeProducerService } from '@contexts/nodes/infrastructure/kafka/kafka-bridge-producer.service';
 import { ForwardNodeEventToKafkaCommand } from './forward-node-event-to-kafka.command';
 import { ForwardNodeEventToKafkaHandler } from './forward-node-event-to-kafka.handler';
 

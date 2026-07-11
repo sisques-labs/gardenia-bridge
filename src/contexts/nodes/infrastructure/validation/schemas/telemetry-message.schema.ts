@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { BridgeMessageTypeEnum } from '../../../domain/enums/bridge-message-type.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 import { bridgeMessageEnvelopeSchema } from './bridge-message-envelope.schema';
 
 export const telemetryMessageSchema = bridgeMessageEnvelopeSchema.extend({

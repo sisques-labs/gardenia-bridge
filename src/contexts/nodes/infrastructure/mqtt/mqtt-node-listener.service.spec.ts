@@ -1,7 +1,7 @@
 import { CommandBus, EventBus } from '@nestjs/cqrs';
 
-import { ForwardNodeEventToKafkaCommand } from '../../application/commands/forward-node-event-to-kafka/forward-node-event-to-kafka.command';
-import { IBridgeMessageLogWriteRepository } from '../../domain/repositories/write/bridge-message-log-write.repository';
+import { ForwardNodeEventToKafkaCommand } from '@contexts/nodes/application/commands/forward-node-event-to-kafka/forward-node-event-to-kafka.command';
+import { IBridgeMessageLogWriteRepository } from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
 import { MqttClientProvider } from './mqtt-client.provider';
 import { MqttNodeListenerService } from './mqtt-node-listener.service';
 

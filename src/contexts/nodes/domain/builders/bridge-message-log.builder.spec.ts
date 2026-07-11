@@ -3,11 +3,11 @@ import {
   UuidValueObject,
 } from '@sisques-labs/nestjs-kit';
 
-import { BridgeMessageLogAggregate } from '../aggregates/bridge-message-log.aggregate';
-import { BridgeMessageDirectionEnum } from '../enums/bridge-message-direction.enum';
-import { BridgeMessageOutcomeEnum } from '../enums/bridge-message-outcome.enum';
-import { BridgeMessageTypeEnum } from '../enums/bridge-message-type.enum';
-import { BridgeMessageLogViewModel } from '../view-models/bridge-message-log.view-model';
+import { BridgeMessageLogAggregate } from '@contexts/nodes/domain/aggregates/bridge-message-log.aggregate';
+import { BridgeMessageDirectionEnum } from '@contexts/nodes/domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '@contexts/nodes/domain/enums/bridge-message-outcome.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { BridgeMessageLogViewModel } from '@contexts/nodes/domain/view-models/bridge-message-log.view-model';
 import { BridgeMessageLogBuilder } from './bridge-message-log.builder';
 
 const ID = '33333333-3333-4333-8333-333333333333';

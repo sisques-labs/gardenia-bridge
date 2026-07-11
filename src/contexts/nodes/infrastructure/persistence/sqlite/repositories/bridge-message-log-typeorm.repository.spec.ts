@@ -1,11 +1,11 @@
 import { UuidValueObject } from '@sisques-labs/nestjs-kit';
 import { Repository } from 'typeorm';
 
-import { BridgeMessageLogBuilder } from '../../../../domain/builders/bridge-message-log.builder';
-import { BridgeMessageDirectionEnum } from '../../../../domain/enums/bridge-message-direction.enum';
-import { BridgeMessageOutcomeEnum } from '../../../../domain/enums/bridge-message-outcome.enum';
-import { BridgeMessageTypeEnum } from '../../../../domain/enums/bridge-message-type.enum';
-import { BridgeMessageLogEntity } from '../entities/bridge-message-log.entity';
+import { BridgeMessageLogBuilder } from '@contexts/nodes/domain/builders/bridge-message-log.builder';
+import { BridgeMessageDirectionEnum } from '@contexts/nodes/domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '@contexts/nodes/domain/enums/bridge-message-outcome.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { BridgeMessageLogEntity } from '@contexts/nodes/infrastructure/persistence/sqlite/entities/bridge-message-log.entity';
 import { BridgeMessageLogTypeormRepository } from './bridge-message-log-typeorm.repository';
 
 describe('BridgeMessageLogTypeormRepository', () => {

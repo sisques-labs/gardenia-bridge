@@ -1,4 +1,4 @@
-import { BridgeMessageTypeEnum } from '../../enums/bridge-message-type.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 import { BridgeMessageTypeValueObject } from './bridge-message-type.value-object';
 
 describe('BridgeMessageTypeValueObject', () => {

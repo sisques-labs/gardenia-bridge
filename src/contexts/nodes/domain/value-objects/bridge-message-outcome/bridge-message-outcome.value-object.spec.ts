@@ -1,4 +1,4 @@
-import { BridgeMessageOutcomeEnum } from '../../enums/bridge-message-outcome.enum';
+import { BridgeMessageOutcomeEnum } from '@contexts/nodes/domain/enums/bridge-message-outcome.enum';
 import { BridgeMessageOutcomeValueObject } from './bridge-message-outcome.value-object';
 
 describe('BridgeMessageOutcomeValueObject', () => {

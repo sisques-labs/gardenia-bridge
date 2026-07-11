@@ -1,13 +1,13 @@
 import { DateValueObject } from '@sisques-labs/nestjs-kit';
 
-import { BridgeMessageTypeEnum } from '../enums/bridge-message-type.enum';
-import { ICommandMessagePrimitives } from '../primitives/command-message.primitives';
-import { BridgeMessageTypeValueObject } from '../value-objects/bridge-message-type/bridge-message-type.value-object';
-import { CommandActionValueObject } from '../value-objects/command-action/command-action.value-object';
-import { CommandIdValueObject } from '../value-objects/command-id/command-id.value-object';
-import { CommandParamsValueObject } from '../value-objects/command-params/command-params.value-object';
-import { NodeIdValueObject } from '../value-objects/node-id/node-id.value-object';
-import { ICommandMessage } from '../interfaces/command-message.interface';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { ICommandMessagePrimitives } from '@contexts/nodes/domain/primitives/command-message.primitives';
+import { BridgeMessageTypeValueObject } from '@contexts/nodes/domain/value-objects/bridge-message-type/bridge-message-type.value-object';
+import { CommandActionValueObject } from '@contexts/nodes/domain/value-objects/command-action/command-action.value-object';
+import { CommandIdValueObject } from '@contexts/nodes/domain/value-objects/command-id/command-id.value-object';
+import { CommandParamsValueObject } from '@contexts/nodes/domain/value-objects/command-params/command-params.value-object';
+import { NodeIdValueObject } from '@contexts/nodes/domain/value-objects/node-id/node-id.value-object';
+import { ICommandMessage } from '@contexts/nodes/domain/interfaces/command-message.interface';
 
 export function buildCommandMessage(
   primitives: ICommandMessagePrimitives,

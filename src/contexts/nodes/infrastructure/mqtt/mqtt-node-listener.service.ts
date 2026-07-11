@@ -2,19 +2,19 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { CommandBus, EventBus } from '@nestjs/cqrs';
 import { UuidValueObject } from '@sisques-labs/nestjs-kit';
 
-import { ForwardNodeEventToKafkaCommand } from '../../application/commands/forward-node-event-to-kafka/forward-node-event-to-kafka.command';
-import { BridgeMessageLogBuilder } from '../../domain/builders/bridge-message-log.builder';
-import { BridgeMessageDirectionEnum } from '../../domain/enums/bridge-message-direction.enum';
-import { BridgeMessageOutcomeEnum } from '../../domain/enums/bridge-message-outcome.enum';
-import { BridgeMessageTypeEnum } from '../../domain/enums/bridge-message-type.enum';
+import { ForwardNodeEventToKafkaCommand } from '@contexts/nodes/application/commands/forward-node-event-to-kafka/forward-node-event-to-kafka.command';
+import { BridgeMessageLogBuilder } from '@contexts/nodes/domain/builders/bridge-message-log.builder';
+import { BridgeMessageDirectionEnum } from '@contexts/nodes/domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '@contexts/nodes/domain/enums/bridge-message-outcome.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 import {
   BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY,
   IBridgeMessageLogWriteRepository,
-} from '../../domain/repositories/write/bridge-message-log-write.repository';
+} from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
 import {
   extractNodeIdFromTopic,
   parseNodeEventPayload,
-} from '../validation/parse-node-event-payload';
+} from '@contexts/nodes/infrastructure/validation/parse-node-event-payload';
 import { MqttClientProvider } from './mqtt-client.provider';
 
 const SUBSCRIBED_TOPICS = [

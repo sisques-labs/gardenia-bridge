@@ -2,15 +2,15 @@ import { Inject, Logger } from '@nestjs/common';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { BaseCommandHandler, UuidValueObject } from '@sisques-labs/nestjs-kit';
 
-import { BridgeMessageLogAggregate } from '../../../domain/aggregates/bridge-message-log.aggregate';
-import { BridgeMessageLogBuilder } from '../../../domain/builders/bridge-message-log.builder';
-import { BridgeMessageDirectionEnum } from '../../../domain/enums/bridge-message-direction.enum';
-import { BridgeMessageOutcomeEnum } from '../../../domain/enums/bridge-message-outcome.enum';
+import { BridgeMessageLogAggregate } from '@contexts/nodes/domain/aggregates/bridge-message-log.aggregate';
+import { BridgeMessageLogBuilder } from '@contexts/nodes/domain/builders/bridge-message-log.builder';
+import { BridgeMessageDirectionEnum } from '@contexts/nodes/domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '@contexts/nodes/domain/enums/bridge-message-outcome.enum';
 import {
   BRIDGE_MESSAGE_LOG_WRITE_REPOSITORY,
   IBridgeMessageLogWriteRepository,
-} from '../../../domain/repositories/write/bridge-message-log-write.repository';
-import { MqttCommandPublisherService } from '../../../infrastructure/mqtt/mqtt-command-publisher.service';
+} from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
+import { MqttCommandPublisherService } from '@contexts/nodes/infrastructure/mqtt/mqtt-command-publisher.service';
 import { ForwardCommandToNodeCommand } from './forward-command-to-node.command';
 
 @CommandHandler(ForwardCommandToNodeCommand)

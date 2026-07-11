@@ -1,6 +1,6 @@
 import { BaseEvent } from '@sisques-labs/nestjs-kit';
 
-import { IBridgeMessageLogEventData } from '../interfaces/bridge-message-log-event-data.interface';
+import { IBridgeMessageLogEventData } from '@contexts/nodes/domain/events/interfaces/bridge-message-log-event-data.interface';
 
 export class BridgeMessageRecordedEvent extends BaseEvent<IBridgeMessageLogEventData> {
   constructor(aggregateId: string, data: IBridgeMessageLogEventData) {

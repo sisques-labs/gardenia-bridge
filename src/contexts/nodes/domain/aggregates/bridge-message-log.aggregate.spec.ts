@@ -1,15 +1,15 @@
 import { DateValueObject, UuidValueObject } from '@sisques-labs/nestjs-kit';
 
-import { BridgeMessageDirectionEnum } from '../enums/bridge-message-direction.enum';
-import { BridgeMessageOutcomeEnum } from '../enums/bridge-message-outcome.enum';
-import { BridgeMessageTypeEnum } from '../enums/bridge-message-type.enum';
-import { BridgeMessageRecordedEvent } from '../events/bridge-message-recorded/bridge-message-recorded.event';
-import { BridgeMessageDirectionValueObject } from '../value-objects/bridge-message-direction/bridge-message-direction.value-object';
-import { BridgeMessageOutcomeValueObject } from '../value-objects/bridge-message-outcome/bridge-message-outcome.value-object';
-import { BridgeMessageTypeValueObject } from '../value-objects/bridge-message-type/bridge-message-type.value-object';
-import { NodeIdValueObject } from '../value-objects/node-id/node-id.value-object';
-import { RawPayloadValueObject } from '../value-objects/raw-payload/raw-payload.value-object';
-import { TopicValueObject } from '../value-objects/topic/topic.value-object';
+import { BridgeMessageDirectionEnum } from '@contexts/nodes/domain/enums/bridge-message-direction.enum';
+import { BridgeMessageOutcomeEnum } from '@contexts/nodes/domain/enums/bridge-message-outcome.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { BridgeMessageRecordedEvent } from '@contexts/nodes/domain/events/bridge-message-recorded/bridge-message-recorded.event';
+import { BridgeMessageDirectionValueObject } from '@contexts/nodes/domain/value-objects/bridge-message-direction/bridge-message-direction.value-object';
+import { BridgeMessageOutcomeValueObject } from '@contexts/nodes/domain/value-objects/bridge-message-outcome/bridge-message-outcome.value-object';
+import { BridgeMessageTypeValueObject } from '@contexts/nodes/domain/value-objects/bridge-message-type/bridge-message-type.value-object';
+import { NodeIdValueObject } from '@contexts/nodes/domain/value-objects/node-id/node-id.value-object';
+import { RawPayloadValueObject } from '@contexts/nodes/domain/value-objects/raw-payload/raw-payload.value-object';
+import { TopicValueObject } from '@contexts/nodes/domain/value-objects/topic/topic.value-object';
 import { BridgeMessageLogAggregate } from './bridge-message-log.aggregate';
 
 const ID = '33333333-3333-4333-8333-333333333333';

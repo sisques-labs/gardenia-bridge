@@ -1,5 +1,5 @@
-import { InvalidMessagePayloadException } from '../../domain/exceptions/invalid-message-payload.exception';
-import { ICommandMessagePrimitives } from '../../domain/primitives/command-message.primitives';
+import { InvalidMessagePayloadException } from '@contexts/nodes/domain/exceptions/invalid-message-payload.exception';
+import { ICommandMessagePrimitives } from '@contexts/nodes/domain/primitives/command-message.primitives';
 import { commandMessageSchema } from './schemas/command-message.schema';
 
 /**

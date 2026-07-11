@@ -1,4 +1,4 @@
-import { BridgeMessageTypeEnum } from '../../../domain/enums/bridge-message-type.enum';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
 import { commandMessageSchema } from './command-message.schema';
 
 describe('commandMessageSchema', () => {

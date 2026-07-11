@@ -9,9 +9,9 @@ import { Kafka, Producer, SASLOptions } from 'kafkajs';
 
 import { IBridgeKafkaConfig } from '@core/config/kafka.config';
 
-import { BridgeMessageTypeEnum } from '../../domain/enums/bridge-message-type.enum';
-import { nodeEventMessageToPrimitives } from '../../domain/factories/node-event-message.factory';
-import { NodeEventMessage } from '../../domain/interfaces/node-event-message.type';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { nodeEventMessageToPrimitives } from '@contexts/nodes/domain/factories/node-event-message.factory';
+import { NodeEventMessage } from '@contexts/nodes/domain/interfaces/node-event-message.type';
 
 @Injectable()
 export class KafkaBridgeProducerService

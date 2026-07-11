@@ -1,5 +1,5 @@
-import { BridgeMessageTypeEnum } from '../enums/bridge-message-type.enum';
-import { ICommandMessagePrimitives } from '../primitives/command-message.primitives';
+import { BridgeMessageTypeEnum } from '@contexts/nodes/domain/enums/bridge-message-type.enum';
+import { ICommandMessagePrimitives } from '@contexts/nodes/domain/primitives/command-message.primitives';
 import {
   buildCommandMessage,
   commandMessageToPrimitives,

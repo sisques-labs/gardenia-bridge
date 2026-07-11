@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { BridgeMessageLogAggregate } from '../../../../domain/aggregates/bridge-message-log.aggregate';
-import { IBridgeMessageLogWriteRepository } from '../../../../domain/repositories/write/bridge-message-log-write.repository';
-import { BridgeMessageLogEntity } from '../entities/bridge-message-log.entity';
+import { BridgeMessageLogAggregate } from '@contexts/nodes/domain/aggregates/bridge-message-log.aggregate';
+import { IBridgeMessageLogWriteRepository } from '@contexts/nodes/domain/repositories/write/bridge-message-log-write.repository';
+import { BridgeMessageLogEntity } from '@contexts/nodes/infrastructure/persistence/sqlite/entities/bridge-message-log.entity';
 
 @Injectable()
 export class BridgeMessageLogTypeormRepository implements IBridgeMessageLogWriteRepository {

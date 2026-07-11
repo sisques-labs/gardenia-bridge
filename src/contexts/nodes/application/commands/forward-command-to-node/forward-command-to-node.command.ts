@@ -1,8 +1,8 @@
-import { buildCommandMessage } from '../../../domain/factories/command-message.factory';
-import { ICommandMessage } from '../../../domain/interfaces/command-message.interface';
-import { ICommandMessagePrimitives } from '../../../domain/primitives/command-message.primitives';
-import { RawPayloadValueObject } from '../../../domain/value-objects/raw-payload/raw-payload.value-object';
-import { TopicValueObject } from '../../../domain/value-objects/topic/topic.value-object';
+import { buildCommandMessage } from '@contexts/nodes/domain/factories/command-message.factory';
+import { ICommandMessage } from '@contexts/nodes/domain/interfaces/command-message.interface';
+import { ICommandMessagePrimitives } from '@contexts/nodes/domain/primitives/command-message.primitives';
+import { RawPayloadValueObject } from '@contexts/nodes/domain/value-objects/raw-payload/raw-payload.value-object';
+import { TopicValueObject } from '@contexts/nodes/domain/value-objects/topic/topic.value-object';
 
 export interface ForwardCommandToNodeCommandInput {
   sourceTopic: string;

@@ -1,5 +1,5 @@
-import { KafkaBridgeCommandsConsumerService } from '../kafka/kafka-bridge-commands-consumer.service';
-import { KafkaBridgeProducerService } from '../kafka/kafka-bridge-producer.service';
+import { KafkaBridgeCommandsConsumerService } from '@contexts/nodes/infrastructure/kafka/kafka-bridge-commands-consumer.service';
+import { KafkaBridgeProducerService } from '@contexts/nodes/infrastructure/kafka/kafka-bridge-producer.service';
 import { BridgeKafkaHealthIndicator } from './bridge-kafka.health-indicator';
 
 describe('BridgeKafkaHealthIndicator', () => {
